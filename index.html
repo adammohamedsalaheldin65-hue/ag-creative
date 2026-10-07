@@ -27,7 +27,7 @@
     html = html.replace(navContact, '<a href="#contact">تواصل معنا</a><a href="' + tiktokURL + '" target="_blank" rel="noopener noreferrer">تيك توك ↗</a></nav>');
     const parsed = new DOMParser().parseFromString(html, 'text/html');
 
-    // Replace the current shell with the fetched document without document.write().
+    // Replace the current shell with the fetched document using DOM APIs.
     // Scripts parsed by DOMParser are inert, so recreate them after the DOM is mounted.
     document.documentElement.lang = parsed.documentElement.lang || document.documentElement.lang;
     document.documentElement.dir = parsed.documentElement.dir || document.documentElement.dir;
