@@ -25,9 +25,37 @@
     html = html.replace(instagramContact, '<div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">' + instagramContact + '<a class="pill secondary" href="' + tiktokURL + '" target="_blank" rel="noopener noreferrer" aria-label="زوروا حساب AG Creative على تيك توك">تابعنا على تيك توك ↗</a></div>');
     html = html.replace(instagramFooter, instagramFooter + '<a href="' + tiktokURL + '" target="_blank" rel="noopener noreferrer" aria-label="AG Creative TikTok">TIKTOK ↗</a>');
     html = html.replace(navContact, '<a href="#contact">تواصل معنا</a><a href="' + tiktokURL + '" target="_blank" rel="noopener noreferrer">تيك توك ↗</a></nav>');
-    document.open();
-    document.write(html);
-    document.close();
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+
+    // Replace the current shell with the fetched document without document.write().
+    // Scripts parsed by DOMParser are inert, so recreate them after the DOM is mounted.
+    document.documentElement.lang = parsed.documentElement.lang || document.documentElement.lang;
+    document.documentElement.dir = parsed.documentElement.dir || document.documentElement.dir;
+    document.head.replaceChildren(...Array.from(parsed.head.childNodes, node => document.importNode(node, true)));
+    document.body.replaceChildren(...Array.from(parsed.body.childNodes, node => document.importNode(node, true)));
+
+    const scripts = Array.from(document.querySelectorAll('script'));
+    for (const oldScript of scripts) {
+      const script = document.createElement('script');
+      for (const { name, value } of Array.from(oldScript.attributes)) {
+        script.setAttribute(name, value);
+      }
+      if (!oldScript.src) script.textContent = oldScript.textContent;
+
+      const loaded = oldScript.src && !oldScript.async && !oldScript.defer
+        ? new Promise((resolve, reject) => {
+            script.addEventListener('load', resolve, { once: true });
+            script.addEventListener('error', reject, { once: true });
+          })
+        : null;
+
+      oldScript.replaceWith(script);
+      if (loaded) await loaded;
+    }
+
+    // The fetched document is mounted after this loader's DOMContentLoaded may have fired.
+    // Re-dispatch it so original.html listeners registered during script execution still initialize.
+    document.dispatchEvent(new Event('DOMContentLoaded'));
   } catch (error) {
     document.getElementById('loading').innerHTML = '<h1>AG Creative</h1><p>يمكنك فتح الموقع الأصلي أو حساب تيك توك من هنا.</p><p><a href="' + originalPath + '">افتح الموقع الأصلي</a> · <a href="' + tiktokURL + '" target="_blank" rel="noopener noreferrer">تيك توك</a></p>';
   }
