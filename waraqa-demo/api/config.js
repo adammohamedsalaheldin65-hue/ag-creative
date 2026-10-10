@@ -4,6 +4,7 @@ export default {
   const supabaseKey=process.env.SUPABASE_PUBLISHABLE_KEY||process.env.SUPABASE_ANON_KEY||'';
   const authConfigured=Boolean(supabaseUrl&&supabaseKey);
   const aiConfigured=Boolean(authConfigured&&process.env.SUPABASE_SERVICE_ROLE_KEY&&process.env.GEMINI_API_KEY);
-  return Response.json({authConfigured,aiConfigured,teacherPays:false,supabaseUrl:authConfigured?supabaseUrl:'',supabaseKey:authConfigured?supabaseKey:''},{headers:{'Cache-Control':'no-store'}});
+  const anonymousAIEnabled=Boolean(aiConfigured&&process.env.ALLOW_ANONYMOUS_AI==='true');
+  return Response.json({authConfigured,aiConfigured,anonymousAIEnabled,teacherPays:false,supabaseUrl:authConfigured?supabaseUrl:'',supabaseKey:authConfigured?supabaseKey:''},{headers:{'Cache-Control':'no-store'}});
  }
 };
