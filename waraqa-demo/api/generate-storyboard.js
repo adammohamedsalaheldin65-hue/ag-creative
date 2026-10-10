@@ -1,10 +1,14 @@
-import {geminiJSON,input,result,problem,fail} from '../lib/gemini.js';
+import {geminiJSON,input,result,problem,fail,parseImages} from '../lib/gemini.js';
+import {authenticate,claimQuota} from '../lib/auth.js';
 
 export default {
  async fetch(request){
   try{
+    const auth=await authenticate(request);
     const v=await input(request);
     if(!String(v.lesson||'').trim()&&!(v.images||[]).length)return problem('أضف نص الدرس أو صوره');
+    parseImages(v.images||[]);
+    await claimQuota(auth,'storyboard');
     const prompt=[
       'أنت معد شرح كرتوني تعليمي للأطفال في مصر.',
       'اكتب JSON صالح فقط بالصيغة {"scenes":[{"heading":"العنوان","narration":"النص المنطوق","visual":"وصف المشهد"}]}',
