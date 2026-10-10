@@ -523,5 +523,166 @@ dbDel=async function(id) {return cloudMode?cloudDel(id):localDbDel(id);};
 // Keep the editor's local full-size image previews only in memory, not in JSONB.
 
 </script>
+
+<script>
+/* Waraqa guest-first optional-login patch */
+'use strict';
+function waraqaGuest(){
+  let saved=null,legacy=null;
+  try{
+    saved=JSON.parse(localStorage.getItem('waraqa_guest_user')||'null');
+    legacy=JSON.parse(localStorage.getItem('waraqa_teacher')||'null');
+  }catch{}
+  if(!saved?.ownerId){
+    saved={name:String(legacy?.name||'المعلم').slice(0,80),email:'',ownerId:legacy?.ownerId||('guest-'+uid())};
+    try{localStorage.setItem('waraqa_guest_user',JSON.stringify(saved))}catch{}
+  }
+  return {...saved,isGuest:true,email:''};
+}
+function waraqaUseGuest(){
+  state.user=waraqaGuest();
+  state.aiAvailable=false;
+  state.authRequested=false;
+  state.page='builder';
+  state.draft.teacher=state.user.name==='المعلم'?'':state.user.name;
+}
+waraqaUseGuest();
+
+const waraqaBaseRender=render;
+render=function(){
+  if(state.authRequested){$('#app').innerHTML=loginHTML();return;}
+  if(!state.user)state.user=waraqaGuest();
+  return waraqaBaseRender();
+};
+
+const waraqaBaseSide=side;
+side=function(){
+  let markup=waraqaBaseSide();
+  if(state.user?.isGuest){
+    markup=markup.replace('الوضع التجريبي المحلي','بدون حساب · الحفظ على هذا الجهاز');
+    markup=markup.replace('<button class="logout" title="خروج" data-action="logout">⇥</button>',
+      cloudMode?'<button class="logout" title="حساب اختياري" data-action="open-login">☁</button>':'');
+  }else{
+    markup=markup.replace('الوضع التجريبي المحلي','حساب خاص بالمعلم');
+  }
+  return markup;
+};
+
+const waraqaBaseLogin=loginHTML;
+loginHTML=function(){
+  return waraqaBaseLogin().replace('</form>',
+    '<button type="button" class="btn btn-outline spaced" style="width:100%" data-action="guest-mode">← استخدم الموقع بدون حساب</button></form>');
+};
+
+const waraqaBaseSettings=settingsHTML;
+settingsHTML=function(){
+  if(!state.user?.isGuest)return waraqaBaseSettings();
+  return '<div class="page-heading"><div><p class="eyebrow">إعدادات ورقة</p><h1>اسم المعلم ⚙️</h1><p class="subheading">تقدر تستخدم الموقع بدون تسجيل دخول.</p></div></div>'+
+  '<div class="form-card" style="max-width:650px">'+
+  '<div class="form-field"><label for="settings-name">اسم المعلم الذي يظهر على ورقة الامتحان</label><input id="settings-name" class="field" value="'+E(state.user.name==='المعلم'?'':state.user.name)+'" placeholder="مثلًا: أ/ زينب المحمدي" /></div>'+
+  '<button class="btn btn-primary spaced" data-action="save-settings">حفظ الاسم</button>'+
+  '<div class="notice blue spaced">✅ الاستخدام مجاني، ومن غير حساب. السجلات محفوظة في نفس المتصفح؛ لو مسحت بيانات المتصفح أو غيرت الجهاز، مش هتلاقيها هنا.</div>'+
+  '<p class="mini-note">📷 صور الدروس ممكن تتقرأ محليًا وتتحول لمسودة أسئلة قابلة للتعديل. راجع كل سؤال وإجابته.</p>'+
+  (cloudMode?'<button class="btn btn-outline spaced" data-action="open-login">☁ ربط حساب سحابي (اختياري تمامًا)</button>':'')+
+  '</div>';
+};
+
+const waraqaBaseRecords=recordsHTML;
+recordsHTML=function(){return state.user?.isGuest?originalRecordsHTML():waraqaBaseRecords();};
+
+dbAll=async function(){return cloudMode&&!state.user?.isGuest?cloudAll():localDbAll();};
+dbPut=async function(record){return cloudMode&&!state.user?.isGuest?cloudPut(record):localDbPut(record);};
+dbDel=async function(id){return cloudMode&&!state.user?.isGuest?cloudDel(id):localDbDel(id);};
+const waraqaHydrate=hydrateExam;
+hydrateExam=async function(record){return state.user?.isGuest?structuredClone(record):waraqaHydrate(record);};
+
+const waraqaBaseSettingsSave=updateTeacherSettings;
+updateTeacherSettings=async function(){
+  if(!state.user?.isGuest)return waraqaBaseSettingsSave();
+  const name=($('#settings-name')?.value||'').trim();
+  if(name.length<2)return toast('اكتب اسم المعلم أولًا');
+  state.user={...waraqaGuest(),name};
+  try{localStorage.setItem('waraqa_guest_user',JSON.stringify(state.user))}catch{}
+  state.draft.teacher=name;
+  render();toast('✅ تم حفظ اسم المعلم');
+};
+
+const waraqaBaseLoginAction=loginOrRegister;
+loginOrRegister=async function(event){
+  await waraqaBaseLoginAction(event);
+  if(state.user&&!state.user.isGuest){state.authRequested=false;state.aiAvailable=!!serviceConfig?.aiConfigured;}
+  render();
+};
+
+signOutTeacher=async function(){
+  stopScenes();
+  if(cloudMode&&supabaseClient&&!state.user?.isGuest){
+    try{await supabaseClient.auth.signOut()}catch{}
+  }
+  waraqaUseGuest();
+  state.exam=null;state.draft=makeDraft();
+  state.draft.teacher=state.user.name==='المعلم'?'':state.user.name;
+  await refreshTeacherRecords();
+  render();
+};
+
+const waraqaBaseAct=act;
+act=async function(action,button){
+  if(action==='open-login'){
+    if(!cloudMode||!supabaseClient)return toast('الحساب الاختياري غير متاح في المعاينة. تقدر تستخدم الموقع بلا حساب.');
+    state.authRequested=true;state.authView='login';state.authError='';
+    render();return;
+  }
+  if(action==='guest-mode'){
+    waraqaUseGuest();await refreshTeacherRecords();render();return;
+  }
+  if(action==='reset-draft'){
+    if(!confirm('تمسح إعدادات الامتحان الحالي وتبدأ من جديد؟'))return;
+    state.draft=makeDraft();state.draft.teacher=state.user?.name==='المعلم'?'':state.user?.name||'';
+    render();return;
+  }
+  return waraqaBaseAct(action,button);
+};
+
+initializeProduction=async function(){
+  waraqaUseGuest();
+  await refreshTeacherRecords();
+  render();
+  let config=null;
+  try{
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),4000);
+    const response=await fetch('/api/config',{signal:controller.signal,cache:'no-store'});
+    clearTimeout(timeout);
+    if(response.ok&&response.headers.get('content-type')?.includes('application/json'))config=await response.json();
+  }catch{}
+  serviceConfig=config;
+  cloudMode=!!(config?.authConfigured&&config?.supabaseUrl&&config?.supabaseKey);
+  state.authView='login';
+  if(cloudMode){
+    if(window.supabase?.createClient){
+      try{
+        supabaseClient=window.supabase.createClient(config.supabaseUrl,config.supabaseKey,
+          {auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+        const {data,error}=await supabaseClient.auth.getUser();
+        if(!error&&data?.user){
+          state.user=userFromAuth(data.user);
+          state.aiAvailable=!!config?.aiConfigured;
+          state.draft.teacher=state.user.name;
+          state.authRequested=false;
+          await refreshTeacherRecords();
+        }
+        supabaseClient.auth.onAuthStateChange(event=>{
+          if(event==='SIGNED_OUT'){
+            waraqaUseGuest();state.records=[];state.exam=null;
+            refreshTeacherRecords().then(()=>render()).catch(()=>render());
+          }
+        });
+      }catch(error){state.authError='تعذر إعداد الدخول الاختياري: '+error.message}
+    }
+  }
+  render();
+};
+</script>
+
 </body>
 </html>
