@@ -1,1 +1,10 @@
-{"name":"waraqa-teachers","private":true,"version":"0.1.0","type":"module","description":"Waraqa teacher exam maker - platform-funded AI API"}
+{
+  "name": "waraqa-teachers-platform",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Free-to-teachers exam platform, platform-managed AI quota",
+  "engines": {
+    "node": "22.x"
+  }
+}
