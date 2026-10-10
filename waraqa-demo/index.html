@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#151b39" />
-  <meta name="description" content="ورقة: مساحة المعلم الذكية لصناعة الامتحانات وشرح الدروس." />
+  <meta name="description" content="ورقة: منصة مجانية للمعلمين لإنشاء امتحانات من صور الدروس، مع السجلات والطباعة." />
   <title>ورقة | منصة المعلم لصناعة الامتحانات</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,9 +19,9 @@
 </style>
 </head>
 <body>
-<div id="app"></div>
-<div id="toast" role="status" aria-live="polite"></div>
-<script>
+  <div id="app"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script>
 /* ورقة — functional local prototype. Teacher data remains in this browser unless AI is explicitly enabled. */
 'use strict';
 const $ = (s,root=document)=>root.querySelector(s);
@@ -76,21 +76,7 @@ async function dbPut(v){try{return await withDbTimeout(dbPutIDB(v))}catch{const 
 async function dbDel(id){try{return await withDbTimeout(dbDelIDB(id))}catch{fallbackWrite(fallbackRead().filter(x=>x.id!==id))}}
 let toastTimeout;function toast(text){const t=$('#toast');t.textContent=text;t.classList.add('show');clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>t.classList.remove('show'),3700)}
 function busy(on,txt='جارٍ تجهيز المحتوى...'){state.processing=on;$('#busy-layer')?.remove();if(on){const el=document.createElement('div');el.id='busy-layer';el.className='busy-overlay';el.innerHTML=`<div class="busy-box"><div class="spinner"></div><b>${E(txt)}</b><p class="hint">يرجى عدم إغلاق الصفحة أثناء المعالجة</p></div>`;document.body.append(el)}}
-async function probeAI(){
-  state.aiAvailable=false;
-  state.aiBackend=false;
-  try {
-    const controller=new AbortController();
-    const timeout=setTimeout(()=>controller.abort(),2500);
-    const response=await fetch('/api/config',{signal:controller.signal});
-    clearTimeout(timeout);
-    if(response.ok&&(response.headers.get('content-type')||'').includes('application/json')){
-       const data=await response.json();
-       state.aiBackend=!!data.aiConfigured;
-       state.aiAvailable=state.aiBackend;
-    }
-  }catch{}
-}
+async function probeAI(){try{const c=new AbortController();setTimeout(()=>c.abort(),2400);const r=await fetch('/api/config',{signal:c.signal});if(r.ok){state.aiAvailable=!!(await r.json()).aiConfigured}}catch{state.aiAvailable=false}}
 function logo(){return `<div class="logo"><div class="logo-mark">▤</div><div><h2>ورقة</h2><small>مساحة المعلم الذكية</small></div></div>`}
 function navItem(page,emoji,title,badge=''){return `<button class="nav-link ${state.page===page?'active':''}" data-action="go" data-page="${page}"><span class="nav-icon">${emoji}</span><span>${title}</span>${badge?`<span class="nav-badge">${badge}</span>`:''}</button>`}
 function side(){return `<aside class="sidebar">${logo()}<p class="nav-title">القائمة الرئيسية</p>${navItem('dashboard','▦','الرئيسية')}${navItem('builder','✍','إنشاء امتحان')}${navItem('records','▤','سجلات الامتحانات',String(state.records.length))}<p class="nav-title">أدوات المعلم</p>${navItem('video','▶','استوديو شرح الدروس')}${navItem('settings','⚙','إعدادات حسابي')}<div class="sidebar-bottom"><div class="upgrade"><b>✨ من صورة الدرس لامتحان</b><p>اكتب محتوى الدرس أو صوّره، ثم خصص الأسئلة بالطريقة التي تناسب طلابك.</p><button data-action="go" data-page="builder">ابدأ الآن ←</button></div><div class="side-account"><div class="avatar">${E((state.user?.name||'م').trim()[0])}</div><div><b>${E(state.user?.name||'معلم')}</b><small>الوضع التجريبي المحلي</small></div><button class="logout" title="خروج" data-action="logout">⇥</button></div></div></aside>`}
@@ -103,90 +89,41 @@ function dashboardHTML(){const r=state.records;const qs=r.reduce((sum,e)=>sum+e.
 function selectOpts(arr,sel){return arr.map(s=>`<option value="${E(s)}" ${s===sel?'selected':''}>${E(s)}</option>`).join('')}
 function builderHTML(){const d=state.draft;const ts=TYPES(),n=totalQs();return `${pageHeading('خطوة بخطوة','أنشئ امتحان جديد 📝','خصص الامتحان بالضبط زي ما تحب، لكل مادة ولكل نوع سؤال.',`<button class="btn btn-outline" data-action="reset-draft">↻ امتحان جديد</button>`)}<div class="builder-layout"><div>
 <section class="form-card"><div class="card-heading"><div class="step-circle">1</div><div><h2>بيانات ورقة الامتحان</h2><p>هتظهر في رأس الورقة المطبوعة</p></div></div><div class="grid-2"><div class="form-field"><label>اسم المعلم *</label><input class="field" data-draft="teacher" value="${E(d.teacher)}" placeholder="اكتب اسم المعلم" /></div><div class="form-field"><label>اسم المدرسة (اختياري)</label><input class="field" data-draft="school" value="${E(d.school)}" placeholder="مدرسة المستقبل" /></div><div class="form-field"><label>الصف الدراسي *</label><select class="select" data-draft="grade">${selectOpts(GRADES,d.grade)}</select></div><div class="form-field"><label>المادة الدراسية *</label><select class="select" data-draft="subject">${selectOpts(SUBJECTS.map(s=>s.name),d.subject)}</select></div>${d.subject==='لغة إضافية / مادة أخرى'?`<div class="form-field"><label>اكتب اسم المادة</label><input class="field" data-draft="customSubject" value="${E(d.customSubject)}" placeholder="اسم المادة" /></div>`:''}<div class="form-field"><label>عنوان الامتحان</label><input class="field" data-draft="title" value="${E(d.title)}" placeholder="امتحان الوحدة الأولى" /></div><div class="form-field"><label>الفصل الدراسي</label><select class="select" data-draft="term">${selectOpts(['الفصل الدراسي الأول','الفصل الدراسي الثاني','العام الدراسي كاملًا'],d.term)}</select></div><div class="form-field"><label>المدة بالدقائق</label><input class="field" data-draft="minutes" type="number" min="5" max="240" value="${E(d.minutes)}" /></div><div class="form-field"><label>الدرجة الكلية</label><input class="field" data-draft="marks" type="number" min="1" max="300" value="${E(d.marks)}" /></div></div><div class="form-divider"></div><div class="form-field"><label>حجم الامتحان</label><div class="exam-sizes">${[['short','🌱','قصير','مراجعة سريعة'],['medium','📗','متوسط','تقييم شامل'],['final','🎓','نهائي','تغطية أكبر']].map(([v,em,t,h])=>`<button class="size-card ${d.size===v?'selected':''}" data-action="size" data-size="${v}"><span>${em}</span><b>${t}</b><small>${h}</small></button>`).join('')}</div></div></section>
-<section class="form-card"><div class="card-heading"><div class="step-circle">2</div><div><h2>محتوى الدرس 📸</h2><p>ارفع صور الدرس أو الصق النص المكتوب أو الاثنين</p></div></div><div id="upload-zone" class="upload-zone" role="button" tabindex="0"><input id="lesson-files" type="file" accept="image/*" multiple hidden /><div class="upload-icon">📷</div><b>اضغط لرفع صور صفحات الدرس</b><span>JPG / PNG / WEBP · حتى 6 صور · يفضّل الصور الواضحة</span></div>${d.images.length?`<div class="uploaded-list">${d.images.map((im,i)=>`<div class="upload-item"><img src="${im.data}" alt="صورة درس رقم ${i+1}"/><small>${E(im.name)}</small><button aria-label="حذف الصورة" data-action="remove-photo" data-index="${i}">×</button></div>`).join('')}</div>`:''}<div class="form-field spaced"><label>نص الدرس (اختياري مع الصور عند تفعيل AI)</label><textarea class="textarea" data-draft="lesson" rows="6" placeholder="اكتب أو الصق نص الدرس هنا. مثال: نهر النيل هو أطول الأنهار في أفريقيا. يقع السد العالي في أسوان ...">${E(d.lesson)}</textarea><p class="hint">${state.aiAvailable?'✨ التوليد من صور الدرس مجاني للمعلمين عند تفعيل الذكاء الاصطناعي المركزي للموقع. يُرجى عدم رفع بيانات طلاب شخصية.':'الذكاء الاصطناعي غير متصل على رابط المعاينة الحالي. استخدم نموذج الأسئلة المبدئي من نص الدرس لحين تفعيل الخدمة المجانية للمعلم.'}</p></div></section>
+<section class="form-card"><div class="card-heading"><div class="step-circle">2</div><div><h2>محتوى الدرس 📸</h2><p>ارفع صور الدرس أو الصق النص المكتوب أو الاثنين</p></div></div><div id="upload-zone" class="upload-zone" role="button" tabindex="0"><input id="lesson-files" type="file" accept="image/*" multiple hidden /><div class="upload-icon">📷</div><b>اضغط لرفع صور صفحات الدرس</b><span>JPG / PNG / WEBP · حتى 6 صور · يفضّل الصور الواضحة</span></div>${d.images.length?`<div class="uploaded-list">${d.images.map((im,i)=>`<div class="upload-item"><img src="${im.data}" alt="صورة درس رقم ${i+1}"/><small>${E(im.name)}</small><button aria-label="حذف الصورة" data-action="remove-photo" data-index="${i}">×</button></div>`).join('')}</div>`:''}<div class="form-field spaced"><label>نص الدرس (مهم للوضع التجريبي)</label><textarea class="textarea" data-draft="lesson" rows="6" placeholder="اكتب أو الصق نص الدرس هنا. مثال: نهر النيل هو أطول الأنهار في أفريقيا. يقع السد العالي في أسوان ...">${E(d.lesson)}</textarea><p class="hint">${state.aiAvailable?'✅ الذكاء الاصطناعي متصل ويمكنه قراءة الصور والنص.':'الصور تُقرأ بالذكاء الاصطناعي بعد تفعيل الحسابات والخادم. لا تُرسل صور طلاب أو بيانات شخصية.'}</p></div></section>
 <section class="form-card"><div class="card-heading"><div class="step-circle">3</div><div><h2>حدد الأسئلة بنفسك 🎯</h2><p>زود أو قلل عدد الأسئلة في كل جزء على حدة</p></div></div><div class="question-types">${ts.map(t=>`<div class="qtype"><span class="qtype-label">${E(t)}</span><div class="counter"><button title="تقليل" data-action="counter" data-type="${E(t)}" data-dir="-1">−</button><output>${d.counts[t]||0}</output><button title="زيادة" data-action="counter" data-type="${E(t)}" data-dir="1">+</button></div></div>`).join('')}</div><div class="map-note spaced">🗺️ <b>للخرائط والرسومات:</b> عند رفع صورة خريطة أو رسم، يمكنك إرفاقها بأي سؤال أثناء المراجعة. توليد خريطة دقيقة جديدة من الصفر غير متاح تلقائيًا في وضع التجربة.</div></section>
 <section class="form-card"><div class="card-heading"><div class="step-circle">4</div><div><h2>تعليمات المعلم الإضافية ✨</h2><p>قول للموقع بالضبط أنت عايز الامتحان إزاي</p></div></div><div class="form-field"><label>تعليمات خاصة</label><textarea class="textarea" rows="4" data-draft="instructions" placeholder="مثال: في أسئلة النحو خلي الجملة مبتدأ وبعده نعت وبعده خبر. وخلي سؤال الخريطة عن محافظات مصر. مستوى الأسئلة مناسب للامتحان النهائي.">${E(d.instructions)}</textarea></div></section>
-</div><aside class="builder-summary"><div class="form-card"><div class="summary-head"><div><div class="muted" style="font-size:12px">إجمالي الأسئلة</div><div class="summary-num">${n}</div></div><div class="circle">📋</div></div><div class="summary-line"><span>المادة</span><b>${E(subjectLabel())}</b></div><div class="summary-line"><span>الصف</span><b>${E(d.grade)}</b></div><div class="summary-line"><span>الحجم</span><b>${E({short:'قصير',medium:'متوسط',final:'نهائي'}[d.size])}</b></div><div class="summary-line"><span>المدة</span><b>${E(d.minutes)} دقيقة</b></div><div class="summary-line"><span>صور الدرس</span><b>${d.images.length}</b></div><div class="summary-tip">✨ كل سؤال تقدر تعدله أو تستبدله بعد التوليد وقبل الطباعة.</div><div class="summary-actions"><button class="btn btn-primary" data-action="generate" ${state.aiAvailable?'':'disabled title="يحتاج إلى تفعيل خادم الذكاء الاصطناعي للموقع"'}>✨ ${state.aiAvailable?'إنشاء امتحان بالذكاء الاصطناعي':'التوليد الذكي قيد التفعيل'}</button><button class="btn btn-outline" data-action="generate-offline">📝 أنشئ نموذجًا من النص بدون AI</button><button class="btn btn-outline" data-action="blank-exam">✍️ ابدأ بورقة فارغة</button></div><p class="mini-note">المعلم لا يدفع ولا يحتاج حساب AI منفصل. التوليد من الصور يتطلب تفعيل خدمة مركزية للموقع. السجلات في هذه النسخة محفوظة على نفس المتصفح، وكل الأسئلة تحتاج مراجعة.</p></div></aside></div>`}
+</div><aside class="builder-summary"><div class="form-card"><div class="summary-head"><div><div class="muted" style="font-size:12px">إجمالي الأسئلة</div><div class="summary-num">${n}</div></div><div class="circle">📋</div></div><div class="summary-line"><span>المادة</span><b>${E(subjectLabel())}</b></div><div class="summary-line"><span>الصف</span><b>${E(d.grade)}</b></div><div class="summary-line"><span>الحجم</span><b>${E({short:'قصير',medium:'متوسط',final:'نهائي'}[d.size])}</b></div><div class="summary-line"><span>المدة</span><b>${E(d.minutes)} دقيقة</b></div><div class="summary-line"><span>صور الدرس</span><b>${d.images.length}</b></div><div class="summary-tip">✨ كل سؤال تقدر تعدله أو تستبدله بعد التوليد وقبل الطباعة.</div><div class="summary-actions"><button class="btn btn-primary" data-action="generate" ${state.aiAvailable?'':'disabled title="خدمة الذكاء الاصطناعي قيد التفعيل"'}>✨ ${state.aiAvailable?'إنشاء امتحان بالذكاء الاصطناعي':'التوليد الذكي قيد التفعيل'}</button><button class="btn btn-outline" data-action="generate-offline">📝 نموذج من النص بدون AI</button><button class="btn btn-outline" data-action="blank-exam">✍️ ابدأ بورقة فارغة</button></div><p class="mini-note">المعلم لا يدفع رسومًا. خدمة الذكاء الاصطناعي تتطلب تفعيلًا مركزيًا؛ النماذج النصية التجريبية تحتاج مراجعة. السجلات محفوظة في حساب المعلم عند تفعيل الاستضافة.</p></div></aside></div>`}
 function getExamTotal(ex){return ex.questions.reduce((a,q)=>a+(Number(q.points)||0),0)}
 function paperHTML(ex,answers=false){const groups=[];for(const q of ex.questions){let gr=groups.find(g=>g.type===q.type);if(!gr){gr={type:q.type,questions:[]};groups.push(gr)}gr.questions.push(q)}let no=0;return `<article class="exam-paper"><div class="paper-header"><div class="paper-head-grid"><div><div>المعلم: <strong>${E(ex.teacher)}</strong></div><div>${E(ex.school||'')}</div></div><div class="paper-mid"><b class="paper-title">${E(ex.title)}</b><div>${E(ex.subject)} | ${E(ex.grade)}</div><div>${E(ex.term||'')}</div></div><div class="paper-end"><div>الزمن: ${E(ex.minutes)} دقيقة</div><div>الدرجة: ${E(getExamTotal(ex))}</div></div></div></div><div class="student-line"><span>اسم الطالب: ..................................................</span><span>الفصل: ............</span></div><div class="paper-body">${groups.map((g,j)=>`<section class="q-group"><h4>السؤال ${['الأول','الثاني','الثالث','الرابع','الخامس','السادس','السابع','الثامن','التاسع','العاشر','الحادي عشر','الثاني عشر'][j]||j+1}: ${E(g.type)}</h4>${g.questions.map(q=>`<div class="paper-q"><div class="question-top"><b>${++no}) ${E(q.text)}</b><span class="qpoints">(${E(q.points||1)} درجة)</span></div>${q.options?.filter(Boolean).length?`<div class="paper-options">${q.options.filter(Boolean).map((opt,k)=>`<div>${['أ','ب','ج','د'][k]||k+1}) ${E(opt)}</div>`).join('')}</div>`:''}${q.imageIndex!=null&&ex.images?.[q.imageIndex]?`<img src="${ex.images[q.imageIndex].data}" alt="خريطة أو رسم للسؤال"/>`:''}${answers?`<div style="color:#176f5e;margin:6px 12px;font-weight:700">الإجابة: ${E(q.answer||'يحددها المعلم')}</div>`:(!q.options?.filter(Boolean).length?`<div class="answer-line"></div>${/(مقال|علل|فسر|قارن|تعبير|خريطة|مسائل|Writing)/i.test(q.type)?'<div class="answer-line"></div>':''}`:'')}</div>`).join('')}</section>`).join('')||'<p style="text-align:center;margin-top:50px">ابدأ بإضافة الأسئلة للامتحان</p>'}</div><div class="paper-watermark">تم إعداد الورقة باستخدام ورقة — المنصة التجريبية للمعلم</div></article>`}
 function editorHTML(){const ex=state.exam;if(!ex)return `<div class="empty">لا يوجد امتحان مفتوح <button class="btn" data-action="go" data-page="builder">ابدأ امتحان</button></div>`;return `${pageHeading('تحرير ومراجعة','راجع ورقة الامتحان 🔍',` ${E(ex.subject)} · ${E(ex.grade)} · ${ex.questions.length} سؤال`,`<div class="toolbar"><button class="btn btn-outline" data-action="go" data-page="records">السجلات</button><button class="btn btn-primary" data-action="print">🖨️ طباعة / PDF</button></div>`)}<div class="notice blue">✏️ <b>مهم:</b> راجع دقة كل سؤال وإجابته، خصوصًا الخرائط والتواريخ والمصطلحات. لا تعتمد على الأسئلة الناتجة آليًا دون مراجعة.</div><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:18px;flex-wrap:wrap"><div class="tab-buttons"><button data-action="editor-tab" data-tab="edit" class="${state.editorTab==='edit'?'active':''}">✍️ تعديل الأسئلة</button><button data-action="editor-tab" data-tab="paper" class="${state.editorTab==='paper'?'active':''}">📄 ورقة الطالب</button><button data-action="editor-tab" data-tab="answers" class="${state.editorTab==='answers'?'active':''}">✅ نموذج الإجابة</button></div><span class="questions-count">${ex.questions.length} سؤال • ${getExamTotal(ex)} درجة</span></div>${state.editorTab==='edit'?`<div class="section-grid editor-grid" style="align-items:start"><section><div class="panel"><div class="panel-inner"><div class="panel-title"><h3>الأسئلة (${ex.questions.length})</h3><button data-action="add-question" class="btn btn-subtle btn-sm">+ إضافة سؤال</button></div>${ex.questions.length?ex.questions.map((q,i)=>`<div class="question-editor"><div class="question-editor-top"><span class="subtle-tag">سؤال ${i+1}</span><div class="editor-actions"><button class="btn btn-outline btn-sm" data-action="move-q" data-index="${i}" data-move="-1" title="تحريك لأعلى">↑</button><button class="btn btn-outline btn-sm" data-action="move-q" data-index="${i}" data-move="1" title="تحريك لأسفل">↓</button><button class="btn btn-danger btn-sm" data-action="delete-q" data-index="${i}">حذف</button></div></div><div class="form-field"><label>نوع السؤال</label><input class="field" value="${E(q.type)}" data-q="type" data-qi="${i}" /></div><div class="form-field spaced"><label>نص السؤال</label><textarea class="textarea" rows="2" data-q="text" data-qi="${i}">${E(q.text)}</textarea></div><div class="grid-2 spaced"><div class="form-field"><label>الإجابة النموذجية</label><textarea rows="2" class="textarea" data-q="answer" data-qi="${i}">${E(q.answer||'')}</textarea></div><div><div class="form-field"><label>الدرجة</label><input class="field" type="number" min="0.25" step="0.25" value="${E(q.points)}" data-q="points" data-qi="${i}" /></div><div class="form-field spaced"><label>صورة أو خريطة مرفقة بالسؤال</label><select class="select" data-q="imageIndex" data-qi="${i}"><option value="">بدون صورة</option>${(ex.images||[]).map((im,j)=>`<option value="${j}" ${q.imageIndex===j?'selected':''}>صورة ${j+1}: ${E(im.name.slice(0,23))}</option>`).join('')}</select></div></div></div><div class="form-field spaced"><label>اختيارات السؤال (سطر لكل اختيار، واتركها فارغة لغير الاختياري)</label><textarea rows="3" class="textarea" data-q="options" data-qi="${i}" placeholder="الاختيار الأول&#10;الاختيار الثاني&#10;الاختيار الثالث&#10;الاختيار الرابع">${E((q.options||[]).join('\n'))}</textarea></div></div>`).join(''):`<div class="empty">ابدأ بإضافة سؤال</div>`}<button class="btn btn-subtle" data-action="add-question">+ إضافة سؤال جديد</button></div></div></section><aside><div class="form-card"><h3 style="margin:0 0 15px;font-size:16px">حفظ وطباعة</h3><p class="mini-note">تقدر تعدل الأسئلة والأجوبة، ثم تحفظ التعديلات في السجلات.</p><div class="summary-actions"><button class="btn btn-primary" data-action="save-exam">💾 حفظ التعديلات</button><button class="btn btn-outline" data-action="print">🖨️ طباعة الامتحان</button><button class="btn btn-outline" data-action="print-answers">✅ طباعة الإجابات</button></div></div></aside></div>`:`<div class="toolbar" style="margin-bottom:12px"><button class="btn btn-outline btn-sm" data-action="print">🖨️ طباعة ورقة الطالب</button><button class="btn btn-outline btn-sm" data-action="print-answers">📑 طباعة نموذج الإجابة</button></div>${paperHTML(ex,state.editorTab==='answers')}`}`}
 function recordsHTML(){const r=state.records.filter(e=>!state.recordFilter||(e.title+' '+e.subject+' '+e.grade+' '+e.teacher).toLowerCase().includes(state.recordFilter.toLowerCase()));return `${pageHeading('أرشيف المعلم','سجلات الامتحانات 🗂️','كل امتحان بتعمله محفوظ هنا على نفس الجهاز والمتصفح.',`<button class="btn btn-primary" data-action="go" data-page="builder">+ امتحان جديد</button>`)}<div class="notice blue">🔒 السجلات محفوظة محليًا على هذا المتصفح فقط. في النسخة المنشورة هنربطها بحساب المعلم، وتكون متاحة له من أجهزته المختلفة بعد تسجيل دخول حقيقي.</div><div class="panel"><div class="panel-inner"><div class="panel-title"><h3>امتحاناتي (${r.length})</h3></div><div class="filters"><input id="records-filter" class="field" placeholder="🔎 ابحث باسم الامتحان أو المادة..." value="${E(state.recordFilter)}" /></div>${r.length?`<div class="table-wrap"><table class="data-table"><thead><tr><th>الامتحان</th><th>المادة والصف</th><th>الأسئلة</th><th>تاريخ الإنشاء</th><th>إجراءات</th></tr></thead><tbody>${r.map(e=>`<tr><td><b>${E(e.title)}</b><br><small class="muted">${E(e.teacher)}</small></td><td>${E(e.subject)}<br><small class="muted">${E(e.grade)}</small></td><td>${e.questions.length}</td><td>${new Date(e.createdAt).toLocaleDateString('ar-EG')}</td><td><div class="toolbar"><button class="btn btn-outline btn-sm" data-action="open-record" data-id="${E(e.id)}">فتح</button><button class="btn btn-outline btn-sm" data-action="print-record" data-id="${E(e.id)}">طباعة</button><button class="btn btn-danger btn-sm" data-action="delete-record" data-id="${E(e.id)}">حذف</button></div></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty"><div class="big">🗃️</div><strong>${state.recordFilter?'مفيش نتائج للبحث':'لسه مفيش امتحانات محفوظة'}</strong><p>الامتحانات اللي هتعملها هتظهر هنا.</p><button class="btn btn-subtle" data-action="go" data-page="builder">أنشئ امتحان</button></div>`}</div></div>`}
 function videoHTML(){const v=state.video;return `${pageHeading('استوديو الشرح','حوّل الدرس لحكاية 🎬','شخصيات كرتونية ومشاهد مبسطة تساعدك تحضّر شرحًا ممتعًا.',`<span class="subtle-tag">نسخة أولية</span>`)}<div class="notice blue">🎙️ <b>التجربة:</b> إنشاء مشاهد من نص الدرس وتشغيل شرح صوتي مباشر (حسب أصوات المتصفح). يمكن تصدير فيديو مشاهد كرتونية بصيغة WebM؛ الصوت داخل ملف الفيديو يتطلب ربط خدمة تحويل النص إلى كلام.</div><div class="section-grid video-grid" style="align-items:start"><div><div class="form-card"><div class="card-heading"><div class="step-circle">🎞</div><div><h2>جهز الشرح</h2><p>أدخل محتوى الدرس وحدد أسلوب الشخصيات</p></div></div><div class="form-field"><label>عنوان الدرس</label><input class="field" data-video="topic" value="${E(v.topic)}" placeholder="مثل: مظاهر سطح مصر" /></div><div class="form-field spaced"><label>الصف الدراسي</label><select class="select" data-video="audience">${selectOpts(GRADES,v.audience)}</select></div><div class="form-field spaced"><label>أسلوب الشرح</label><select class="select" data-video="style"><option value="dialogue" ${v.style==='dialogue'?'selected':''}>حوار بين معلم وتلميذ</option><option value="narrator" ${v.style==='narrator'?'selected':''}>شخصية معلم تشرح</option></select></div><div class="form-field spaced"><label>صور الدرس لشرح الفيديو</label><div class="upload-zone" id="video-upload-zone" role="button" tabindex="0"><input type="file" id="video-files" accept="image/*" multiple hidden /><div class="upload-icon">📷</div><b>ارفع حتى 6 صور من الدرس</b><span>يتم تحليل محتوى الصور عند تفعيل خدمة الذكاء الاصطناعي</span></div>${v.images?.length?`<div class="uploaded-list">${v.images.map((im,i)=>`<div class="upload-item"><img src="${im.data}" alt="صفحة الدرس"/><small>${E(im.name)}</small><button data-action="remove-video-photo" data-index="${i}">×</button></div>`).join('')}</div>`:''}</div><div class="form-field spaced"><label>نص الدرس (أو صور عند تفعيل AI)</label><textarea class="textarea" rows="7" data-video="lesson" placeholder="الصق نص الدرس...">${E(v.lesson)}</textarea></div><div class="toolbar spaced"><button class="btn btn-primary" data-action="storyboard">✨ إنشاء مشاهد الشرح</button><button class="btn btn-outline" data-action="use-draft-video">استخدام نص الامتحان</button></div></div>${v.scenes.length?`<div class="form-card"><div class="panel-title"><h3>المشاهد (${v.scenes.length})</h3></div><div class="scene-cards">${v.scenes.map((s,i)=>`<div class="scene-card"><span class="subtle-tag">مشهد ${i+1}</span><b style="display:block;margin-top:6px">${E(s.heading||'جزء من الشرح')}</b><p>${E(s.narration)}</p><small class="muted">🎨 ${E(s.visual||'شخصية كرتونية تشرح')}</small></div>`).join('')}</div></div>`:''}</div><div class="form-card"><div class="video-preview" id="video-preview"><div style="text-align:center;position:relative;z-index:1"><div class="cartoon" id="cartoon-face">${v.style==='dialogue'?'👩‍🏫🧒':'👩‍🏫'}</div><h3 id="scene-title">${v.scenes.length?E(v.scenes[v.scene]?.heading||'ابدأ الشرح'):'الدرس هيبقى مغامرة!'}</h3><p id="scene-caption">${v.scenes.length?E(v.scenes[v.scene]?.narration||''): 'الصق الدرس واضغط «إنشاء مشاهد الشرح» علشان تشوف معاينة كرتونية.'}</p></div></div>${v.scenes.length?`<div class="toolbar spaced"><button class="btn btn-primary" data-action="play-video">▶ تشغيل المعاينة</button><button class="btn btn-outline" data-action="stop-video">⏹ إيقاف</button><button class="btn btn-outline" data-action="export-webm">⬇ تصدير WebM</button></div><p class="mini-note spaced">الفيديو المُصدّر يعرض المشاهد والكتابة. ${state.aiAvailable?'يمكن إضافة تعليق صوتي آلي عند تشغيل خدمة الصوت على الخادم.':'بدون ربط خدمة الصوت، الفيديو المُصدّر صامت بينما النطق الصوتي للمعاينة فقط.'}</p>`:''}</div></div>`}
 function settingsHTML(){return `${pageHeading('مساحة المعلم','الإعدادات ⚙️','تعديل معلوماتك المعروضة على ورقة الامتحان.') }<div class="form-card" style="max-width:600px"><div class="card-heading"><div class="step-circle">👤</div><div><h2>الملف الشخصي</h2><p>بيانات حساب التجربة المحلي</p></div></div><div class="form-field"><label>اسم المعلم</label><input id="settings-name" class="field" value="${E(state.user.name)}" /></div><div class="form-field spaced"><label>البريد الإلكتروني</label><input id="settings-email" class="field" type="email" value="${E(state.user.email||'')}" /></div><button class="btn btn-primary spaced" data-action="save-settings">حفظ التعديلات</button><div class="form-divider"></div><h3>حالة الخدمات</h3><p class="mini-note">${state.aiAvailable?'🟢 خدمة الذكاء الاصطناعي متصلة.':'🟠 الذكاء الاصطناعي غير مفعل على هذا التشغيل.'}</p><p class="mini-note">✅ تصميم الامتحانات، التعديل، السجلات المحلية والطباعة تعمل دون رسوم أو حسابات خارجية.</p><p class="mini-note">🔐 دخول المعلمين الحقيقي مع عزل سجلات كل معلم يحتاج Supabase Auth وقاعدة بيانات وسياسات خصوصية قبل النشر.</p><button class="btn btn-danger spaced" data-action="logout">خروج من وضع التجربة</button></div>`}
-
-
 function seededGenerate(d){const sentences=d.lesson.replace(/\r/g,' ').split(/[.!؟؛\n]+/).map(s=>s.replace(/\s+/g,' ').trim()).filter(s=>s.length>18);if(!sentences.length)throw new Error('اكتب جملًا من الدرس، أو اربط الذكاء الاصطناعي لقراءة صور الدرس.');const stop=new Set(['الذي','التي','وهذا','وهذه','هناك','كانت','يمكن','يكون','علينا','الدرس','تعتبر','بسبب','حيث','لذلك','وهناك','توجد','يساعد','يسمى','تكون','خلال']);const concepts=[...new Set(sentences.flatMap(s=>s.split(/\s+/)).map(w=>w.replace(/[^\p{L}\p{N}]/gu,'')).filter(w=>w.length>4&&!stop.has(w)))].slice(0,20);const types=Object.entries(d.counts).flatMap(([type,n])=>Array.from({length:Math.min(35,Number(n)||0)},()=>type));const questions=types.map((type,i)=>{const s=sentences[i%sentences.length],words=s.split(' ').filter(w=>w.length>3),word=words[Math.min(2,words.length-1)]||'المفهوم',eng=/Choose|Vocabulary|Grammar|Reading|Writing|Complete|Rearrange|Choisissez|Grammaire/.test(type),mcq=/اختر|Choose|Choisissez|Vocabulary/.test(type),tf=/صح أم خطأ/.test(type),blank=/أكمل|Complete/.test(type),map=/خريطة|خرائط|رسومات/.test(type),compare=/قارن|مقارن/.test(type),why=/فسر|علل|النتائج|مترتبة/.test(type);let text='',answer=s,options=[];if(mcq){text=eng?`Choose the word mentioned in this lesson statement: «${s}»`:`اختر الكلمة الواردة في العبارة الآتية من الدرس: «${s}»`;const alternatives=concepts.filter(c=>c!==word&&!s.includes(c)).slice(i%3,i%3+3);options=[word,...alternatives];while(options.length<4)options.push('خيار يحتاج تعديل');options=options.sort((a,b)=>String(a).localeCompare(String(b)));answer=word}else if(blank){text=s.replace(word,'...................');answer=word}else if(tf){text=`ضع علامة (✓) أو (✗) أمام العبارة: ${s}`;answer='صح (بحسب نص الدرس)'}else if(map){text=`استعن بالخريطة أو الرسم الخاص بالدرس، ثم حدّد ما يرتبط بالعبارة الآتية: ${s}`;answer=`راجع الرسم المرفق: ${s}`}else if(compare){text=`قارن بين مفهومين أو عنصرين مرتبطين بالعبارة التالية كما وردا في الدرس: ${s}`;answer='يحدد المعلم العنصرين والإجابة من الدرس'}else if(why){text=`${type} ما ورد في العبارة التالية: ${s}`;answer=s}else{text=eng?`Based on the lesson, explain: ${s}`:`بالاستعانة بالدرس، وضح المقصود بالعبارة الآتية: ${s}`;answer=s}return {id:uid(),type,text,options,answer,points:1,imageIndex:map&&d.images.length?0:null}});setPoints(questions,d.marks);return questions}
 function setPoints(questions,marks){if(!questions.length)return;const marks100=Math.round((Number(marks)||questions.length)*100);const whole=Math.floor(marks100/questions.length);questions.forEach((q,i)=>q.points=(whole+(i<marks100-whole*questions.length?1:0))/100)}
 function buildExam(questions,source){const d=state.draft;return {id:uid(),teacher:d.teacher.trim()||state.user.name,school:d.school.trim(),title:d.title.trim()||'امتحان على الدرس',subject:subjectLabel(),grade:d.grade,term:d.term,minutes:Number(d.minutes)||30,marks:Number(d.marks)||20,images:JSON.parse(JSON.stringify(d.images)),questions,source,createdAt:Date.now()}}
 function trimResponseToCounts(qs,counts){const used={};const result=[];for(const q of qs){if(!q||!q.text)continue;const type=String(q.type||'أسئلة عامة').trim();if(!Object.prototype.hasOwnProperty.call(counts,type))continue;if((used[type]||0)>=(counts[type]||0))continue;used[type]=(used[type]||0)+1;result.push({id:uid(),type,text:String(q.text||''),options:Array.isArray(q.options)?q.options.slice(0,4).map(String):[],answer:String(q.answer||''),points:1,imageIndex:Number.isInteger(q.image_index)&&q.image_index>=0&&q.image_index<state.draft.images.length?q.image_index:null})}return result}
 async function saveExam(ex=state.exam){if(!ex)return;await dbPut(ex);state.records=await dbAll();toast('✅ تم حفظ الامتحان في سجلاتك');}
-async function generateExam(useBlank=false,forceOffline=false){
- const d=state.draft;
- if(!d.teacher.trim())return toast('اكتب اسم المعلم أولًا');
- if(totalQs()===0&&!useBlank)return toast('حدد عدد سؤال واحد على الأقل');
- if(totalQs()>120)return toast('الحد الحالي 120 سؤال في الامتحان الواحد');
- let qs=[],source='manual';
- if(!useBlank){
-   if(!forceOffline&&!state.aiAvailable)return toast('الذكاء الاصطناعي للصور لم يتم تفعيله على هذا الرابط بعد. يمكنك تجربة نموذج نصي مؤقتًا؛ ولن ندفع المعلمين أي رسوم.');
-   if(state.aiAvailable&&!forceOffline){
-     if(!d.lesson.trim()&&!d.images.length)return toast('اكتب نص الدرس أو ارفع صوره أولًا');
-     busy(true,'جارٍ قراءة صور الدرس وصياغة الامتحان...');
-     try{
-       const resp=await fetch('/api/generate-exam',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({subject:subjectLabel(),grade:d.grade,title:d.title,counts:d.counts,instructions:d.instructions,lesson:d.lesson,images:d.images,marks:d.marks})});
-       const data=await resp.json();
-       if(!resp.ok)throw new Error(data.error||'الخدمة غير متاحة مؤقتًا');
-       qs=trimResponseToCounts(data.questions||[],d.counts);
-       if(!qs.length)throw new Error('لم يتم توليد أسئلة؛ تحقق من صور الدرس وعدد الأسئلة.');
-       setPoints(qs,d.marks);
-       source='ai';
-     }catch(e){busy(false);return toast('⚠️ '+(e.message||'فشل الاتصال'))}
-     busy(false);
-   }else{
-     if(!d.lesson.trim())return toast('في الوضع المحلي اكتب نص الدرس. الصور وحدها تحتاج تفعيل AI.');
-     try{qs=seededGenerate(d)}catch(e){return toast('⚠️ '+e.message)}
-     source='demo';toast('⚠️ تم تجهيز نموذج أولي يحتاج مراجعة وتصحيحًا.');
-   }
- }
- const ex=buildExam(qs,source);
- try{await saveExam(ex)}catch(e){return toast('تعذر الحفظ: '+e.message)}
- state.exam=ex;state.editorTab='edit';state.page='editor';render();window.scrollTo({top:0});
-}
+async function generateExam(useBlank=false,forceOffline=false){const d=state.draft;if(!d.teacher.trim())return toast('اكتب اسم المعلم أولًا');if(totalQs()===0&&!useBlank)return toast('حدد عدد سؤال واحد على الأقل');if(totalQs()>(!useBlank&&!forceOffline&&state.aiAvailable?50:120))return toast('الحد للتوليد الذكي 50 سؤالًا في العملية الواحدة');let qs=[];let source='manual';if(!useBlank){if(state.aiAvailable&&!forceOffline){if(!d.lesson.trim()&&!d.images.length)return toast('اكتب نص الدرس أو ارفع صوره أولًا');busy(true,'جارٍ قراءة الدرس وتجهيز الامتحان بالذكاء الاصطناعي...');try{const resp=await fetch('/api/generate-exam',{method:'POST',headers:await aiHeaders(),body:JSON.stringify({subject:subjectLabel(),grade:d.grade,title:d.title,counts:d.counts,instructions:d.instructions,lesson:d.lesson,images:d.images,marks:d.marks})});const data=await resp.json();if(!resp.ok)throw new Error(data.error||'حدث خطأ في الاتصال');qs=trimResponseToCounts(data.questions||[],d.counts);if(!qs.length)throw new Error('لم يتم توليد أسئلة. جرّب إضافة نص أو صور أوضح.');setPoints(qs,d.marks);source='ai'}catch(e){busy(false);return toast('⚠️ '+e.message)}busy(false)}else{if(!d.lesson.trim())return toast('في وضع التجربة: اكتب محتوى الدرس يدويًا لتوليد نموذج أولي. الصور وحدها لا تُقرأ دون اتصال AI.');try{qs=seededGenerate(d)}catch(e){return toast('⚠️ '+e.message)}source='demo';toast('⚠️ تم توليد نموذج مبدئي يحتاج مراجعة المعلم وتحرير الأسئلة')}}const ex=buildExam(qs,source);try{await saveExam(ex)}catch(e){return toast('تعذر الحفظ على المتصفح: '+e.message)}state.exam=ex;state.editorTab='edit';state.page='editor';render();window.scrollTo({top:0})}
 async function readPhoto(file){return new Promise((resolve,reject)=>{const img=new Image(),url=URL.createObjectURL(file);img.onload=()=>{try{const c=document.createElement('canvas');const max=1250;const scale=Math.min(1,max/Math.max(img.width,img.height));c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);c.getContext('2d').drawImage(img,0,0,c.width,c.height);const data=c.toDataURL('image/jpeg',.78);URL.revokeObjectURL(url);resolve({name:file.name.slice(0,70),data})}catch(e){reject(e)}};img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('الصورة غير مدعومة'))};img.src=url})}
 async function addPhotos(files){const allowed=[...files].filter(f=>f.type.startsWith('image/')&&f.size<9*1024*1024);if(!allowed.length)return toast('ارفع صور JPG أو PNG أقل من 9 ميجابايت');const room=6-state.draft.images.length;if(room<=0)return toast('الحد الأقصى 6 صور لكل درس');busy(true,'جارٍ تجهيز صور الدرس...');try{for(const file of allowed.slice(0,room)){state.draft.images.push(await readPhoto(file))}toast(`✅ أُضيفت ${Math.min(room,allowed.length)} صورة`)}catch(e){toast(e.message)}busy(false);render()}
 function createOfflineScenes(text,topic){const raw=text.split(/[\n.!؟؛]+/).map(x=>x.trim()).filter(x=>x.length>22);if(!raw.length)throw new Error('اكتب محتوى الدرس في جمل واضحة');const chunks=[];let cur='';for(const sentence of raw){if(cur.length+sentence.length>175&&cur){chunks.push(cur);cur=''}cur+=(cur?'، ':'')+sentence}if(cur)chunks.push(cur);const chosen=chunks.slice(0,7);return [{heading:'أهلًا يا أبطال!',narration:`أهلًا يا أبطال! النهارده هنتعلم درس ${topic||'جديد'} مع بعض بطريقة سهلة وممتعة.`,visual:'المعلمة ترحب بالطلاب'},...chosen.map((s,i)=>({heading:`الجزء ${i+1} من الدرس`,narration:s,visual:'المعلم يشير إلى لوحة بها فكرة من الدرس'})),{heading:'إيه اللي اتعلمناه؟',narration:`وبكده خلصنا درس ${topic||'اليوم'}. راجعوا الأفكار اللي اتكلمنا عنها، وحاولوا تحلوا سؤال من عندكم.`,visual:'المعلم والتلميذ يودعان المشاهد'}]}
-async function createStoryboard(){
- const v=state.video;
- if(!v.lesson.trim()&&!(state.aiAvailable&&v.images?.length))return toast('اكتب نص الدرس أو ارفع صوره مع تفعيل AI');
- if(state.aiAvailable){
-   busy(true,'جارٍ تجهيز سيناريو الشرح...');
-   try{
-     const resp=await fetch('/api/generate-storyboard',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lesson:v.lesson,topic:v.topic,grade:v.audience,style:v.style,images:v.images||[]})});
-     const data=await resp.json();
-     if(!resp.ok)throw Error(data.error||'تعذر إنشاء المشاهد');
-     v.scenes=(data.scenes||[]).slice(0,9).map(x=>({heading:String(x.heading||''),narration:String(x.narration||''),visual:String(x.visual||'')}));
-     if(!v.scenes.length)throw Error('لا توجد مشاهد');
-   }catch(e){busy(false);return toast('⚠️ '+(e.message||'فشل إنشاء المشاهد'))}
-   busy(false);
- }else{
-   try{v.scenes=createOfflineScenes(v.lesson,v.topic)}catch(e){return toast(e.message)}
- }
- v.scene=0;v.playing=false;render();toast('✅ المشاهد جاهزة للمعاينة');
-}
+async function createStoryboard(){const v=state.video;if(!v.lesson.trim()&&!(state.aiAvailable&&v.images?.length))return toast('اكتب نص الدرس أو ارفع صوره مع تفعيل AI');if(state.aiAvailable){busy(true,'جارٍ تجهيز سيناريو الشخصيات...');try{const resp=await fetch('/api/generate-storyboard',{method:'POST',headers:await aiHeaders(),body:JSON.stringify({lesson:v.lesson,topic:v.topic,grade:v.audience,style:v.style,images:v.images||[]})});const data=await resp.json();if(!resp.ok)throw Error(data.error||'تعذّر إنشاء المشاهد');v.scenes=(data.scenes||[]).slice(0,9).map(x=>({heading:String(x.heading||''),narration:String(x.narration||''),visual:String(x.visual||'')}));if(!v.scenes.length)throw Error('لا توجد مشاهد')}catch(e){toast(e.message);busy(false);return}busy(false)}else{try{v.scenes=createOfflineScenes(v.lesson,v.topic)}catch(e){return toast(e.message)}}v.scene=0;v.playing=false;render();toast('✅ المشاهد جاهزة للمعاينة')}
 let sceneTimeout;
 function stopScenes(){clearTimeout(sceneTimeout);if('speechSynthesis' in window)window.speechSynthesis.cancel();state.video.playing=false}
 function previewScene(i){const v=state.video;if(!v.playing||i>=v.scenes.length){stopScenes();return}v.scene=i;const s=v.scenes[i];if($('#scene-title'))$('#scene-title').textContent=s.heading;if($('#scene-caption'))$('#scene-caption').textContent=s.narration;if($('#cartoon-face'))$('#cartoon-face').textContent=v.style==='dialogue'?(i%2?'🧒👩‍🏫':'👩‍🏫🧒'):'👩‍🏫';let ms=Math.min(15000,Math.max(3800,s.narration.length*90));if('speechSynthesis' in window){window.speechSynthesis.cancel();const utter=new SpeechSynthesisUtterance(s.narration);utter.lang='ar-EG';utter.rate=.88;const voices=window.speechSynthesis.getVoices();const voice=voices.find(x=>x.lang==='ar-EG')||voices.find(x=>x.lang.startsWith('ar'));if(voice)utter.voice=voice;utter.onend=()=>{clearTimeout(sceneTimeout);previewScene(i+1)};utter.onerror=()=>{clearTimeout(sceneTimeout);previewScene(i+1)};window.speechSynthesis.speak(utter);sceneTimeout=setTimeout(()=>{if(v.playing){window.speechSynthesis.cancel();previewScene(i+1)}},Math.max(ms,16000))}else sceneTimeout=setTimeout(()=>previewScene(i+1),ms)}
-async function exportWebM(){const v=state.video;if(!v.scenes.length)return toast('أنشئ المشاهد أولًا');if(!('MediaRecorder' in window)||!HTMLCanvasElement.prototype.captureStream)return toast('المتصفح لا يدعم تصدير الفيديو. جرّب Chrome أو Edge.');stopScenes();busy(true,'جارٍ تجهيز الفيديو الكرتوني...');try{const canvas=document.createElement('canvas');canvas.width=960;canvas.height=540;const ctx=canvas.getContext('2d');const all=v.scenes.map(s=>s.narration).join(' ');let audioBlob=null;if(state.aiAvailable){try{const resp=await fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:all.slice(0,3500)})});if(resp.ok)audioBlob=await resp.blob()}catch{}}
+async function exportWebM(){const v=state.video;if(!v.scenes.length)return toast('أنشئ المشاهد أولًا');if(!('MediaRecorder' in window)||!HTMLCanvasElement.prototype.captureStream)return toast('المتصفح لا يدعم تصدير الفيديو. جرّب Chrome أو Edge.');stopScenes();busy(true,'جارٍ تجهيز الفيديو الكرتوني...');try{const canvas=document.createElement('canvas');canvas.width=960;canvas.height=540;const ctx=canvas.getContext('2d');const all=v.scenes.map(s=>s.narration).join(' ');let audioBlob=null;if(false){try{const resp=await fetch('/api/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:all.slice(0,3500)})});if(resp.ok)audioBlob=await resp.blob()}catch{}}
 const stream=canvas.captureStream(25);let audioElement=null,ac=null,src=null,seconds;let audioDuration=0;if(audioBlob){audioElement=new Audio(URL.createObjectURL(audioBlob));await new Promise(r=>{audioElement.onloadedmetadata=r;audioElement.onerror=r;setTimeout(r,2200)});audioDuration=Number.isFinite(audioElement.duration)?audioElement.duration:0;try{ac=new (window.AudioContext||window.webkitAudioContext)();const aSrc=ac.createMediaElementSource(audioElement),dest=ac.createMediaStreamDestination();aSrc.connect(dest);aSrc.connect(ac.destination);stream.addTrack(dest.stream.getAudioTracks()[0])}catch{audioElement=null}}
 const recorder=new MediaRecorder(stream,{mimeType:MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')?'video/webm;codecs=vp9,opus':'video/webm'});const chunks=[];recorder.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};const done=new Promise((resolve,reject)=>{recorder.onstop=resolve;recorder.onerror=reject});const durations=v.scenes.map(s=>Math.max(2.6,Math.min(8,s.narration.length*.064)));const durSum=durations.reduce((a,b)=>a+b,0);const factor=audioDuration>0?audioDuration/durSum:1;const boundaries=durations.map(x=>x*factor);const totalSec=boundaries.reduce((a,b)=>a+b,0);const start=performance.now();recorder.start(350);if(audioElement){await ac?.resume();audioElement.play().catch(()=>{})}busy(false);toast('🎬 بدأ تصدير الفيديو. سيُحفظ الملف تلقائيًا بعد عرض كل المشاهد.');await new Promise(resolve=>{const tick=()=>{const elapsed=(performance.now()-start)/1000;let passed=0,idx=0;while(idx<boundaries.length-1&&elapsed>=passed+boundaries[idx]){passed+=boundaries[idx];idx++}const scene=v.scenes[idx];drawScene(ctx,canvas,scene,idx,v.scenes.length,elapsed-passed,boundaries[idx],v.style,v.topic);if(elapsed<totalSec)requestAnimationFrame(tick);else resolve()};tick()});recorder.stop();await done;audioElement?.pause();if(ac)await ac.close();stream.getTracks().forEach(t=>t.stop());const blob=new Blob(chunks,{type:'video/webm'});const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download='شرح-'+(v.topic||'الدرس').replace(/[\\/:*?"<>|]/g,'').slice(0,40)+'.webm';a.click();setTimeout(()=>URL.revokeObjectURL(u),10000);toast(audioBlob?'✅ تم تنزيل فيديو الشرح بصوت':'✅ تم تنزيل الفيديو الصامت مع النصوص')}catch(e){busy(false);toast('تعذر تصدير الفيديو: '+e.message)}}
 function wrapText(ctx,text,maxWidth,maxLines=5){const words=String(text).split(/\s+/);let lines=[],line='';for(const word of words){const test=line?line+' '+word:word;if(ctx.measureText(test).width>maxWidth&&line){lines.push(line);line=word}else line=test}if(line)lines.push(line);return lines.slice(0,maxLines).map((x,i)=>i===maxLines-1&&lines.length>maxLines?x+'…':x)}
 function drawScene(ctx,c,s,i,count,elapsed,sceneLength,style,topic){const w=c.width,h=c.height;const gradient=ctx.createLinearGradient(0,0,w,h);gradient.addColorStop(0,'#25205e');gradient.addColorStop(1,'#5c4bd0');ctx.fillStyle=gradient;ctx.fillRect(0,0,w,h);ctx.fillStyle='rgba(255,255,255,.06)';ctx.beginPath();ctx.arc(760,160,200,0,7);ctx.fill();ctx.beginPath();ctx.arc(80,500,190,0,7);ctx.fill();ctx.textAlign='center';ctx.direction='rtl';ctx.font='bold 28px Tajawal,Arial';ctx.fillStyle='#f9e3a4';ctx.fillText('ورقة  •  '+String(topic||'شرح الدرس'),w/2,50);const bob=Math.sin(elapsed*6)*7;ctx.font='112px Arial';ctx.fillText(style==='dialogue'?(i%2?'🧒':'👩‍🏫'):'👩‍🏫',w/2,210+bob);ctx.fillStyle='#fff';ctx.font='bold 33px Tajawal,Arial';ctx.fillText(s.heading,w/2,275);ctx.font='25px Tajawal,Arial';const lines=wrapText(ctx,s.narration,790,5);lines.forEach((line,k)=>ctx.fillText(line,w/2,328+k*39));ctx.fillStyle='#c6c1fe';ctx.font='18px Tajawal,Arial';ctx.fillText(`المشهد ${i+1} من ${count}`,w/2,h-45);ctx.fillStyle='#ffffff42';ctx.fillRect(190,h-29,w-380,5);ctx.fillStyle='#f6b787';ctx.fillRect(190,h-29,(w-380)*Math.min(1,Math.max(0,elapsed/sceneLength)),5)}
-async function act(a,btn){const val=n=>btn.dataset[n];switch(a){case 'go':stopScenes();state.page=val('page');render();window.scrollTo(0,0);break;case 'logout':stopScenes();try{localStorage.removeItem('waraqa_teacher')}catch{}state.user=null;state.exam=null;state.records=[];state.draft=makeDraft();render();break;case 'reset-draft':if(!confirm('تمسح بيانات الامتحان الحالي وتبدأ من جديد؟'))return;state.draft=makeDraft();render();break;case 'size':state.draft.size=val('size');state.draft.counts=defaultCounts(TYPES(),state.draft.size);state.draft.minutes={short:30,medium:45,final:90}[state.draft.size];state.draft.marks={short:20,medium:40,final:60}[state.draft.size];render();break;case 'counter':state.draft.counts[val('type')]=Math.max(0,Math.min(50,(state.draft.counts[val('type')]||0)+Number(val('dir'))));render();break;case 'remove-photo':state.draft.images.splice(Number(val('index')),1);render();break;case 'generate':await generateExam();break;case 'generate-offline':await generateExam(false,true);break;case 'blank-exam':await generateExam(true);break;case 'editor-tab':state.editorTab=val('tab');render();break;case 'save-exam':await saveExam();render();break;case 'add-question':state.exam.questions.push({id:uid(),type:'سؤال جديد',text:'اكتب نص السؤال هنا',answer:'',options:[],points:1,imageIndex:null});render();break;case 'delete-q':state.exam.questions.splice(Number(val('index')),1);render();break;case 'move-q':{const from=Number(val('index')),to=from+Number(val('move'));const x=state.exam.questions;if(to<0||to>=x.length)return;[x[from],x[to]]=[x[to],x[from]];render();break;}case 'open-record':state.exam=structuredClone(byId(val('id')));state.editorTab='edit';state.page='editor';render();window.scrollTo(0,0);break;case 'print-record':state.exam=structuredClone(byId(val('id')));state.page='editor';state.editorTab='paper';render();setTimeout(()=>printExam(false),100);break;case 'delete-record':if(!confirm('متأكد من حذف هذا الامتحان؟ لا يمكن استرجاعه.'))return;await dbDel(val('id'));state.records=(await dbAll()).filter(x=>x.ownerId===state.user.ownerId);render();toast('تم حذف الامتحان');break;case 'print':printExam(false);break;case 'print-answers':printExam(true);break;case 'save-settings':{const name=$('#settings-name').value.trim(),email=$('#settings-email').value.trim();if(name.length<2)return toast('اكتب اسم معلم صحيح');state.user={...state.user,name,email};try{localStorage.setItem('waraqa_teacher',JSON.stringify(state.user))}catch{}if(state.draft.teacher)state.draft.teacher=name;render();toast('تم حفظ بياناتك');break;}case 'storyboard':await createStoryboard();break;case 'use-draft-video':state.video.lesson=state.draft.lesson;if(!state.video.topic)state.video.topic=state.draft.title;state.video.audience=state.draft.grade;state.video.images=[...state.draft.images];render();toast('تم استيراد نص وصور الدرس من إعداد الامتحان');break;case 'remove-video-photo':state.video.images.splice(Number(val('index')),1);render();break;case 'play-video':if(!state.video.scenes.length)return;stopScenes();state.video.playing=true;previewScene(0);break;case 'stop-video':stopScenes();toast('تم إيقاف المعاينة');break;case 'export-webm':await exportWebM();break;}}
+async function act(a,btn){const val=n=>btn.dataset[n];switch(a){case 'go':stopScenes();state.page=val('page');render();window.scrollTo(0,0);break;case 'logout':await signOutTeacher();break;case 'auth-mode':state.authView=val('mode');state.authError='';render();break;case 'reset-password':await requestPasswordReset();break;case 'reset-draft':if(!confirm('تمسح بيانات الامتحان الحالي وتبدأ من جديد؟'))return;state.draft=makeDraft();render();break;case 'size':state.draft.size=val('size');state.draft.counts=defaultCounts(TYPES(),state.draft.size);state.draft.minutes={short:30,medium:45,final:90}[state.draft.size];state.draft.marks={short:20,medium:40,final:60}[state.draft.size];render();break;case 'counter':state.draft.counts[val('type')]=Math.max(0,Math.min(50,(state.draft.counts[val('type')]||0)+Number(val('dir'))));render();break;case 'remove-photo':state.draft.images.splice(Number(val('index')),1);render();break;case 'generate':await generateExam();break;case 'generate-offline':await generateExam(false,true);break;case 'blank-exam':await generateExam(true);break;case 'editor-tab':state.editorTab=val('tab');render();break;case 'save-exam':await saveExam();render();break;case 'add-question':state.exam.questions.push({id:uid(),type:'سؤال جديد',text:'اكتب نص السؤال هنا',answer:'',options:[],points:1,imageIndex:null});render();break;case 'delete-q':state.exam.questions.splice(Number(val('index')),1);render();break;case 'move-q':{const from=Number(val('index')),to=from+Number(val('move'));const x=state.exam.questions;if(to<0||to>=x.length)return;[x[from],x[to]]=[x[to],x[from]];render();break;}case 'open-record':state.exam=await hydrateExam(byId(val('id')));state.editorTab='edit';state.page='editor';render();window.scrollTo(0,0);break;case 'print-record':state.exam=await hydrateExam(byId(val('id')));state.page='editor';state.editorTab='paper';render();setTimeout(()=>printExam(false),100);break;case 'delete-record':if(!confirm('متأكد من حذف هذا الامتحان؟ لا يمكن استرجاعه.'))return;await dbDel(val('id'));state.records=(await dbAll()).filter(x=>x.ownerId===state.user.ownerId);render();toast('تم حذف الامتحان');break;case 'print':printExam(false);break;case 'print-answers':printExam(true);break;case 'save-settings':await updateTeacherSettings();break;case 'storyboard':await createStoryboard();break;case 'use-draft-video':state.video.lesson=state.draft.lesson;if(!state.video.topic)state.video.topic=state.draft.title;state.video.audience=state.draft.grade;state.video.images=[...state.draft.images];render();toast('تم استيراد نص وصور الدرس من إعداد الامتحان');break;case 'remove-video-photo':state.video.images.splice(Number(val('index')),1);render();break;case 'play-video':if(!state.video.scenes.length)return;stopScenes();state.video.playing=true;previewScene(0);break;case 'stop-video':stopScenes();toast('تم إيقاف المعاينة');break;case 'export-webm':await exportWebM();break;}}
 function printExam(answers){if(!state.exam)return;const root=$('#print-root');if(!root)return;root.innerHTML=paperHTML(state.exam,answers);window.print()}
 function patchEditorInput(el){const q=state.exam?.questions?.[Number(el.dataset.qi)];if(!q)return;const k=el.dataset.q;if(k==='options')q.options=el.value.split('\n').map(s=>s.trim()).filter(Boolean).slice(0,4);else if(k==='points')q.points=Number(el.value)||0;else if(k==='imageIndex')q.imageIndex=el.value===''?null:Number(el.value);else q[k]=el.value}
 function patchDraft(el){const k=el.dataset.draft,old=state.draft[k];state.draft[k]=el.type==='number'?(Number(el.value)||0):el.value;if(k==='subject'&&old!==el.value){state.draft.counts=defaultCounts(TYPES(),state.draft.size);render()}else if(k==='grade' || k==='teacher' || k==='minutes' || k==='marks' || k==='customSubject'){/* Update draft; reflect changes when the next component rerenders. */}}
 function patchVideo(el){state.video[el.dataset.video]=el.value;if(el.dataset.video==='style')render()}
 function keepFilter(input){const st=input.selectionStart;state.recordFilter=input.value;render();const next=$('#records-filter');if(next){next.focus();next.setSelectionRange(st,st)}}
-document.addEventListener('submit',async e=>{if(e.target.id!=='login-form')return;e.preventDefault();const name=$('#login-name').value.trim(),email=$('#login-email').value.trim();if(name.length<2)return toast('اكتب اسم المعلم');const ownerId=(email||name).trim().toLowerCase();state.user={name,email,ownerId};try{localStorage.setItem('waraqa_teacher',JSON.stringify(state.user))}catch{}state.records=(await dbAll()).filter(x=>x.ownerId===ownerId);state.draft.teacher=name;render();toast('أهلًا بيك في ورقة 👋')});
+document.addEventListener('submit',async e=>{if(e.target.id!=='login-form')return;await loginOrRegister(e)});
 document.addEventListener('click',async e=>{const btn=e.target.closest('[data-action]');if(btn){e.preventDefault();if(state.processing)return;try{await act(btn.dataset.action,btn)}catch(err){toast('حدث خطأ: '+err.message)}return}if(e.target.closest('#upload-zone'))$('#lesson-files')?.click();if(e.target.closest('#video-upload-zone'))$('#video-files')?.click()});
 document.addEventListener('input',e=>{const el=e.target;if(el.dataset.draft)patchDraft(el);if(el.dataset.q)patchEditorInput(el);if(el.dataset.video)patchVideo(el);if(el.id==='records-filter')keepFilter(el)});
 document.addEventListener('change',async e=>{const el=e.target;if(el.dataset.draft&&el.tagName==='SELECT')patchDraft(el);if(el.dataset.q)patchEditorInput(el);if(el.dataset.video)patchVideo(el);if(el.id==='lesson-files'){await addPhotos(el.files);el.value=''}if(el.id==='video-files'){await addVideoPhotos(el.files);el.value=''}});
@@ -199,7 +136,285 @@ async function init(){try{state.records=(await dbAll()).filter(x=>state.user&&x.
 // Attach owner isolation to every newly saved record (demo convenience, not real security).
 const oldSaveExam=saveExam;saveExam=async ex=>{if(ex)ex.ownerId=state.user?.ownerId;return oldSaveExam(ex)};
 // Match the same save owner isolation for the online-generated and local exam.
-init();
+document.addEventListener('DOMContentLoaded', ()=>initializeProduction());
+
+</script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/dist/umd/supabase.min.js"></script>
+  <script>
+/* Waraqa production integration. The preview remains clearly labeled local-only. */
+'use strict';
+let supabaseClient = null;
+let cloudMode = false;
+let serviceConfig = null;
+const localDbAll = dbAll;
+const localDbPut = dbPut;
+const localDbDel = dbDel;
+const originalSettingsHTML = settingsHTML;
+const originalRecordsHTML = recordsHTML;
+
+function userFromAuth(user) {
+  return {
+    ownerId: user.id,
+    name: String(user.user_metadata?.full_name || user.email?.split('@')[0] || 'المعلم').slice(0,80),
+    email: user.email || ''
+  };
+}
+
+async function refreshTeacherRecords() {
+  if (!state.user) { state.records = []; return; }
+  try { state.records = (await dbAll()).filter(e => e.ownerId === state.user.ownerId); }
+  catch (error) { state.records = []; toast('تعذر تحميل الامتحانات: ' + error.message); }
+}
+
+async function initializeProduction() {
+  state.user = null;
+  render();
+  let config = null;
+  try {
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 6000);
+    const response = await fetch('/api/config', { signal: abort.signal, cache: 'no-store' });
+    clearTimeout(timer);
+    if (response.ok && response.headers.get('content-type')?.includes('application/json')) {
+      config = await response.json();
+    }
+  } catch { /* Static file and GitHub preview have no API. */ }
+  serviceConfig = config;
+  cloudMode = !!(config?.authConfigured && config?.supabaseUrl && config?.supabaseKey);
+  state.aiAvailable = !!(cloudMode && config?.aiConfigured);
+  state.authView = 'login';
+  if (cloudMode) {
+    if (!window.supabase?.createClient) {
+      state.authError = 'تعذر تحميل مكتبة تسجيل الدخول. تحقق من الإنترنت وأعد تحميل الصفحة.';
+      render(); return;
+    }
+    try {
+      supabaseClient = window.supabase.createClient(config.supabaseUrl, config.supabaseKey, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+      });
+      const { data, error } = await supabaseClient.auth.getUser();
+      if (!error && data?.user) {
+        state.user = userFromAuth(data.user);
+        state.draft.teacher = state.user.name;
+        await refreshTeacherRecords();
+      }
+      // Don't make asynchronous API calls *inside* the auth listener.
+      supabaseClient.auth.onAuthStateChange((event) => {
+        if (event === 'SIGNED_OUT') {
+          state.user = null; state.records = []; state.exam = null;
+          state.page = 'dashboard'; render();
+        }
+      });
+    } catch (error) {
+      state.authError = 'فشل الاتصال بحسابات المعلمين: ' + error.message;
+    }
+  } else {
+    state.user = localUser();
+    if (state.user) {
+      state.draft.teacher = state.user.name;
+      await refreshTeacherRecords();
+    }
+  }
+  render();
+}
+
+async function getAccessToken() {
+  if (!cloudMode || !supabaseClient) throw new Error('الخادم الخاص بحسابات المعلمين غير متصل');
+  const { data, error } = await supabaseClient.auth.getSession();
+  if (error || !data.session?.access_token) throw new Error('سجل الدخول بحسابك مرة أخرى');
+  return data.session.access_token;
+}
+
+async function aiHeaders() {
+  return { 'Content-Type': 'application/json', Authorization: 'Bearer ' + await getAccessToken() };
+}
+
+async function loginOrRegister(event) {
+  if (event?.preventDefault) event.preventDefault();
+  const name = ($('#login-name')?.value || '').trim();
+  const email = ($('#login-email')?.value || '').trim().toLowerCase();
+  const password = $('#login-password')?.value || '';
+  if (cloudMode) {
+    if (!supabaseClient) return toast('حسابات المعلمين غير متاحة حاليًا. أعد فتح الموقع.');
+    if (!email) return toast('اكتب البريد الإلكتروني');
+    if (password.length < 8) return toast('كلمة المرور يجب أن تكون 8 أحرف على الأقل');
+    const signup = state.authView === 'signup';
+    if (signup && name.length < 2) return toast('اكتب اسم المعلم');
+    busy(true, signup ? 'جارٍ إنشاء حساب المعلم...' : 'جارٍ تسجيل الدخول...');
+    try {
+      const response = signup
+        ? await supabaseClient.auth.signUp({ email, password, options: { data: { full_name: name } } })
+        : await supabaseClient.auth.signInWithPassword({ email, password });
+      if (response.error) throw response.error;
+      if (signup && !response.data?.session) {
+        state.authView = 'login';
+        state.authError = 'تم إرسال رسالة لتأكيد بريدك الإلكتروني. افتحها ثم سجل الدخول.';
+        render(); return;
+      }
+      const user = response.data?.user;
+      if (!user) throw new Error('لم يتم تسجيل الدخول؛ راجع بريدك الإلكتروني');
+      state.user = userFromAuth(user);
+      state.draft.teacher = state.user.name;
+      state.page = 'dashboard';
+      state.authError = '';
+      await refreshTeacherRecords();
+      render(); toast('أهلًا بك في ورقة! 🌟');
+    } catch (error) {
+      state.authError = error.message || 'تعذر إتمام تسجيل الدخول';
+      render();
+    } finally { busy(false); }
+  } else {
+    if (name.length < 2) return toast('اكتب اسم المعلم');
+    const ownerId = (email || name).trim().toLowerCase();
+    state.user = {name, email, ownerId};
+    try { localStorage.setItem('waraqa_teacher', JSON.stringify(state.user)); } catch {}
+    await refreshTeacherRecords();
+    state.draft.teacher = name;
+    render(); toast('أهلًا بك في المعاينة المحلية.');
+  }
+}
+
+async function requestPasswordReset() {
+  if (!cloudMode || !supabaseClient) return toast('الاستعادة متاحة للحسابات الحقيقية فقط');
+  const email = ($('#login-email')?.value || '').trim();
+  if (!email) return toast('اكتب بريدك الإلكتروني أولًا');
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + window.location.pathname
+  });
+  toast(error ? 'تعذر إرسال رابط الاستعادة: '+error.message : 'لو البريد مسجّل، ستصلك رسالة استعادة كلمة المرور.');
+}
+
+async function signOutTeacher() {
+  stopScenes();
+  if (cloudMode && supabaseClient) {
+    await supabaseClient.auth.signOut();
+  } else {
+    try { localStorage.removeItem('waraqa_teacher'); } catch {}
+  }
+  state.user = null;
+  state.exam = null;
+  state.records = [];
+  state.draft = makeDraft();
+  render();
+}
+
+async function updateTeacherSettings() {
+  const name = ($('#settings-name')?.value || '').trim();
+  const email = ($('#settings-email')?.value || '').trim();
+  if (name.length < 2) return toast('اكتب اسم معلم صحيح');
+  if (cloudMode) {
+    const {error} = await supabaseClient.auth.updateUser({data:{full_name:name}});
+    if (error) return toast('تعذر تعديل الاسم: ' + error.message);
+    state.user = {...state.user, name};
+    toast('تم حفظ اسم المعلم. تغيير البريد الإلكتروني من إعدادات حسابك لاحقًا.');
+  } else {
+    state.user={...state.user,name,email};
+    try {localStorage.setItem('waraqa_teacher',JSON.stringify(state.user));} catch {}
+    toast('تم حفظ بيانات المعاينة');
+  }
+  state.draft.teacher = name;
+  render();
+}
+
+loginHTML = function() {
+  const signup = cloudMode && state.authView === 'signup';
+  const preview = !cloudMode;
+  return `<div class="login-page"><div class="login-visual">${logo()}<div><h1>درسك يتحوّل<br>لامتحان في دقائق.</h1><p>صوّر الدرس، اختر الأسئلة، راجع الامتحان، واطبعه من أي جهاز.</p><div class="big-illustration">📚✍️</div></div><div class="bottom-note">ورقة — منصة المعلم الذكية</div></div>
+  <div class="login-form-wrap"><form class="login-form" id="login-form">${logo()}<h2>${preview?'جرّب منصة ورقة':signup?'إنشاء حساب معلم جديد':'مرحبًا بعودتك 👋'}</h2>
+  <p>${preview?'هذه معاينة مجانية محلية؛ تفعيل الحسابات الحقيقية يحتاج استضافة وربط قاعدة البيانات.':'حسابك مجاني. سجلات امتحاناتك خاصة بك ويمكن الوصول إليها من أجهزتك.'}</p>
+  ${state.authError?`<div class="notice">${E(state.authError)}</div>`:''}
+  ${signup||preview?`<div class="form-field"><label for="login-name">اسم المعلم</label><input id="login-name" class="field" required minlength="2" maxlength="70" autocomplete="name" placeholder="أ/ زينب المحمدي" /></div>`:''}
+  <div class="form-field spaced"><label for="login-email">البريد الإلكتروني ${preview?'(اختياري)':'*'}</label><input id="login-email" class="field" type="email" ${preview?'':'required'} autocomplete="email" placeholder="teacher@example.com" /></div>
+  ${preview?'':`<div class="form-field spaced"><label for="login-password">كلمة المرور</label><input id="login-password" class="field" type="password" required minlength="8" autocomplete="${signup?'new-password':'current-password'}" placeholder="8 أحرف على الأقل" /></div>`}
+  <button class="btn btn-primary spaced" type="submit">${preview?'الدخول إلى المعاينة':signup?'إنشاء حساب مجاني':'تسجيل الدخول'} ←</button>
+  ${preview?'<div class="login-footnote">⚠️ بيانات المعاينة في نفس المتصفح فقط، وليست حسابات حقيقية.</div>':`<div class="toolbar" style="margin-top:16px;justify-content:space-between"><button type="button" class="text-action" data-action="auth-mode" data-mode="${signup?'login':'signup'}">${signup?'لدي حساب بالفعل':'إنشاء حساب معلم مجانًا'}</button>${signup?'':`<button type="button" class="text-action" data-action="reset-password">نسيت كلمة المرور؟</button>`}</div><div class="login-footnote">لا تدفع أي رسوم. التوليد بالذكاء الاصطناعي يخضع للحصة اليومية المتاحة.</div>`}
+  </form></div></div>`;
+};
+
+settingsHTML = function() {
+  let html = originalSettingsHTML();
+  if (cloudMode) {
+    html = html.replace('بيانات حساب التجربة المحلي','حساب المعلم المحمي بكلمة المرور');
+    html = html.replace('✅ تصميم الامتحانات، التعديل، السجلات المحلية والطباعة تعمل دون رسوم أو حسابات خارجية.', '✅ السجلات محفوظة في حسابك الخاص وتُعرض عبر أجهزتك.');
+    html = html.replace('🔐 دخول المعلمين الحقيقي مع عزل سجلات كل معلم يحتاج Supabase Auth وقاعدة بيانات وسياسات خصوصية قبل النشر.', '🔒 السجلات والصور خاصة بحسابك. يولد الذكاء الاصطناعي أسئلة ضمن حد الاستخدام اليومي.');
+    html = html.replace('خروج من وضع التجربة','تسجيل الخروج');
+    html = html.replace('id="settings-email" class="field" type="email"','id="settings-email" class="field" type="email" readonly title="تعديل البريد يحتاج تأكيد بريد جديد"');
+  }
+  return html;
+};
+recordsHTML = function() {
+  let html = originalRecordsHTML();
+  if (cloudMode) {
+    html = html.replace('كل امتحان بتعمله محفوظ هنا على نفس الجهاز والمتصفح.', 'امتحاناتك محفوظة في حسابك ومتاحة من أجهزتك.');
+    html = html.replace('🔒 السجلات محفوظة محليًا على هذا المتصفح فقط. في النسخة المنشورة هنربطها بحساب المعلم، وتكون متاحة له من أجهزته المختلفة بعد تسجيل دخول حقيقي.', '🔒 الامتحانات محفوظة بخصوصية في حسابك؛ لا يطّلع معلم آخر على سجلاتك.');
+  }
+  return html;
+};
+
+function blobFromDataUri(uri) {
+  const match = String(uri).match(/^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (!match) throw new Error('إحدى الصور غير مدعومة');
+  const binary=atob(match[2]),out=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++)out[i]=binary.charCodeAt(i);
+  return new Blob([out],{type:match[1]});
+}
+
+async function cloudAll() {
+  const {data,error}=await supabaseClient.from('exams').select('payload').order('created_at',{ascending:false}).limit(250);
+  if(error)throw new Error(error.message);
+  return (data||[]).map(x=>x.payload).filter(x=>x?.ownerId===state.user?.ownerId);
+}
+
+async function cloudPut(exam) {
+  if (!state.user?.ownerId) throw new Error('سجل دخولك أولًا');
+  const uid=state.user.ownerId;
+  const images=[];
+  for(let i=0;i<(exam.images||[]).length;i++){
+    const im=exam.images[i];
+    const storagePath=im.storagePath || `${uid}/${exam.id}/${i}.jpg`;
+    if(im.data?.startsWith('data:')){
+      const blob=blobFromDataUri(im.data);
+      if(blob.size>1_950_000)throw new Error('صورة كبيرة جدًا. حاول التقاط صورة أوضح بحجم أصغر.');
+      const {error}=await supabaseClient.storage.from('exam-images').upload(storagePath,blob,{upsert:true,contentType:blob.type});
+      if(error)throw new Error('تعذر تخزين صورة الدرس: '+error.message);
+    }
+    images.push({name:String(im.name||`صورة ${i+1}`).slice(0,70),storagePath});
+  }
+  const payload={...exam,ownerId:uid,images};
+  if(JSON.stringify(payload).length>280000)throw new Error('الامتحان كبير جدًا للحفظ. قلل عدد الأسئلة.');
+  const {error}=await supabaseClient.from('exams').upsert({id:exam.id,user_id:uid,payload},{onConflict:'id'});
+  if(error)throw new Error('تعذر حفظ الامتحان: '+error.message);
+}
+
+async function cloudDel(id) {
+  const record=state.records.find(x=>x.id===id);
+  const paths=(record?.images||[]).map(x=>x.storagePath).filter(Boolean);
+  if(paths.length) {
+    const {error}=await supabaseClient.storage.from('exam-images').remove(paths);
+    if(error)console.warn('Could not delete some image objects');
+  }
+  const {error}=await supabaseClient.from('exams').delete().eq('id',id);
+  if(error)throw new Error('تعذر حذف الامتحان: '+error.message);
+}
+
+async function hydrateExam(ex) {
+  const clone=structuredClone(ex);
+  if(!cloudMode)return clone;
+  clone.images=await Promise.all((clone.images||[]).map(async im=>{
+    if(!im.storagePath)return im;
+    const {data,error}=await supabaseClient.storage.from('exam-images').createSignedUrl(im.storagePath,3600);
+    if(error)return {...im,data:''};
+    return {...im,data:data.signedUrl};
+  }));
+  return clone;
+}
+
+dbAll=async function() {return cloudMode?cloudAll():localDbAll();};
+dbPut=async function(record) {return cloudMode?cloudPut(record):localDbPut(record);};
+dbDel=async function(id) {return cloudMode?cloudDel(id):localDbDel(id);};
+
+// Reading exams from cloud still relies on a signed-in session and RLS.
+// Keep the editor's local full-size image previews only in memory, not in JSONB.
 
 </script>
 </body>
