@@ -65,7 +65,8 @@ alter table public.ai_requests enable row level security;
 revoke all on public.ai_requests from public,anon,authenticated;
 grant select,insert on public.ai_requests to service_role;
 
--- Atomic quota under an advisory lock: max 5 AI requests per user and 100 total per UTC day.
+-- Atomic quota under an advisory lock: max 3 AI requests per browser identity and 30 total per UTC day.
+-- Anonymous users can create new identities if they clear browser storage; the hard GLOBAL cap remains in effect.
 -- The application server calls this with the service role ONLY after verifying /auth/v1/user.
 create or replace function public.claim_ai_quota(p_user uuid,p_kind text)
 returns table(allowed boolean,reason text,remaining integer)
@@ -85,14 +86,16 @@ begin
  where user_id=p_user and created_at>=day_start;
  select count(*) into global_count from public.ai_requests
  where created_at>=day_start;
- if user_count>=5 then return query select false,'daily'::text,0; return; end if;
- if global_count>=100 then return query select false,'global'::text,0; return; end if;
+ if user_count>=3 then return query select false,'daily'::text,0; return; end if;
+ if global_count>=30 then return query select false,'global'::text,0; return; end if;
  insert into public.ai_requests(user_id,kind) values (p_user,p_kind);
- return query select true,'ok'::text,4-user_count;
+ return query select true,'ok'::text,2-user_count;
 end;
 $$;
 revoke all on function public.claim_ai_quota(uuid,text) from public,anon,authenticated;
 grant execute on function public.claim_ai_quota(uuid,text) to service_role;
 
 -- Verify after running: SQL Editor -> select * from pg_policies where schemaname='public';
--- Enable email confirmation, disable anonymous signins, use Supabase Auth rate-limit features.
+-- For passwordless teacher AI, enable Anonymous Sign-Ins in Supabase Auth > Providers.
+-- Rate limits/CAPTCHA on anonymous signups strongly recommended; anonymous users can exhaust the platform-wide daily quota.
+-- Keep ALLOW_ANONYMOUS_AI=false until the platform keys, policy and privacy notices are configured.
