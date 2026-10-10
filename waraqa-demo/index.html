@@ -645,42 +645,86 @@ act=async function(action,button){
 };
 
 initializeProduction=async function(){
+  // Open the exam builder immediately. There is no signup, password or payment step.
   waraqaUseGuest();
   await refreshTeacherRecords();
   render();
+
   let config=null;
-  try{
-    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),4000);
+  try {
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),4000);
     const response=await fetch('/api/config',{signal:controller.signal,cache:'no-store'});
     clearTimeout(timeout);
     if(response.ok&&response.headers.get('content-type')?.includes('application/json'))config=await response.json();
-  }catch{}
+  }catch{ /* No server on the HTMLPreview link; local OCR remains available. */ }
+
   serviceConfig=config;
   cloudMode=!!(config?.authConfigured&&config?.supabaseUrl&&config?.supabaseKey);
   state.authView='login';
-  if(cloudMode){
-    if(window.supabase?.createClient){
-      try{
-        supabaseClient=window.supabase.createClient(config.supabaseUrl,config.supabaseKey,
-          {auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
-        const {data,error}=await supabaseClient.auth.getUser();
-        if(!error&&data?.user){
-          state.user=userFromAuth(data.user);
-          state.aiAvailable=!!config?.aiConfigured;
-          state.draft.teacher=state.user.name;
-          state.authRequested=false;
-          await refreshTeacherRecords();
-        }
-        supabaseClient.auth.onAuthStateChange(event=>{
-          if(event==='SIGNED_OUT'){
-            waraqaUseGuest();state.records=[];state.exam=null;
-            refreshTeacherRecords().then(()=>render()).catch(()=>render());
-          }
-        });
-      }catch(error){state.authError='تعذر إعداد الدخول الاختياري: '+error.message}
+  if(!cloudMode||!window.supabase?.createClient){render();return;}
+
+  try{
+    supabaseClient=window.supabase.createClient(config.supabaseUrl,config.supabaseKey,{
+      auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
+    });
+
+    const {data:existing,error}=await supabaseClient.auth.getUser();
+    const existingUser=error?null:existing?.user;
+    if(existingUser&&!existingUser.is_anonymous){
+      // A permanent account is OPTIONAL; retain it when the user already signed in.
+      state.user=userFromAuth(existingUser);
+      state.aiAvailable=!!config.aiConfigured;
+      state.draft.teacher=state.user.name;
+      state.authRequested=false;
+      await refreshTeacherRecords();
+    }else if(config.anonymousAIEnabled&&config.aiConfigured){
+      // Supabase's anonymous session is invisible to teachers; they never see a login screen.
+      let authUser=existingUser;
+      if(!authUser){
+        const {data, error}=await supabaseClient.auth.signInAnonymously();
+        if(error)throw new Error('جلسة الذكاء الاصطناعي غير متاحة: '+error.message);
+        authUser=data?.user;
+      }
+      if(!authUser?.is_anonymous)throw new Error('تعذر تأكيد جلسة الزائر تلقائيًا');
+      const {data:sessionData}=await supabaseClient.auth.getSession();
+      state.aiAvailable=!!sessionData?.session?.access_token;
+      state.user=waraqaGuest();
+      state.authRequested=false;
+      state.page='builder';
+      await refreshTeacherRecords();
+    }else{
+      state.aiAvailable=false;
+      state.user=waraqaGuest();
     }
+
+    supabaseClient.auth.onAuthStateChange(event=>{
+      if(event==='SIGNED_OUT'){
+        waraqaUseGuest();
+        state.records=[];state.exam=null;
+        refreshTeacherRecords().then(()=>render()).catch(()=>render());
+      }
+    });
+  }catch(error){
+    console.warn('Waraqa optional AI guest session unavailable:',error.message);
+    state.user=waraqaGuest();
+    state.aiAvailable=false;
+    state.authRequested=false;
   }
   render();
+};
+
+const waraqaOldGetAccessToken=getAccessToken;
+getAccessToken=async function(){
+  if(state.user?.isGuest){
+    if(!cloudMode||!serviceConfig?.anonymousAIEnabled||!supabaseClient)
+      throw new Error('التوليد الذكي لم يُفعّل على الخادم. استخدم قارئ الصور المجاني مؤقتًا.');
+    const {data,error}=await supabaseClient.auth.getSession();
+    if(error||!data?.session?.access_token||data.session.user?.is_anonymous!==true)
+      throw new Error('تعذر التحقق من جلسة الزائر؛ حدّث الصفحة وجرب مرة أخرى.');
+    return data.session.access_token;
+  }
+  return waraqaOldGetAccessToken();
 };
 </script>
 
