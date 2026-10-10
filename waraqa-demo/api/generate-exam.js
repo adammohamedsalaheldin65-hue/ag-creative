@@ -1,14 +1,18 @@
-import {geminiJSON,input,result,problem,fail} from '../lib/gemini.js';
+import {geminiJSON,input,result,problem,fail,parseImages} from '../lib/gemini.js';
+import {authenticate,claimQuota} from '../lib/auth.js';
 
 export default {
  async fetch(request){
   try{
     const d=await input(request);
+    const auth=await authenticate(request);
     const counts=Object.fromEntries(Object.entries(d.counts||{}).filter(([k,n])=>k.length<90&&Number.isInteger(n)&&n>0&&n<=60));
     const total=Object.values(counts).reduce((a,b)=>a+b,0);
-    if(!total||total>70)return problem('حدد من 1 إلى 70 سؤالًا في التوليد الذكي');
+    if(!total||total>50)return problem('حدد من 1 إلى 50 سؤالًا في التوليد الذكي');
     if(!(String(d.lesson||'').trim()||(d.images||[]).length))return problem('ارفع صور الدرس أو اكتب محتواه أولًا');
     if(String(d.lesson||'').length>22000)return problem('نص الدرس طويل جدًا، قسّمه إلى درسين');
+    parseImages(d.images||[]);
+    await claimQuota(auth,'exam');
     const prompt=[
       'أنت معلم خبير في مناهج مصر. أعد امتحانًا دقيقًا من محتوى الدرس وصوره المرفقة فقط.',
       'اكتب JSON صالح فقط بالشكل: {"questions":[{"type":"نوع السؤال","text":"السؤال","options":["إجابة1","إجابة2","إجابة3","إجابة4"],"answer":"الإجابة الصحيحة","image_index":null}]}',
