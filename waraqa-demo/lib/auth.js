@@ -16,8 +16,11 @@ export async function authenticate(request){
  catch{throw Object.assign(new Error('تعذر التحقق من حساب المعلم'),{status:503})}
  if(!res.ok)throw Object.assign(new Error('انتهت الجلسة، سجل الدخول مرة أخرى'),{status:401});
  const user=await res.json();
- if(!user?.id||user.is_anonymous===true)throw Object.assign(new Error('سجل الدخول بحساب معلم مؤكد'),{status:401});
- return {user,serviceKey,url};
+ if(!user?.id)throw Object.assign(new Error('تعذر التحقق من الجلسة'),{status:401});
+ const anonymous=user.is_anonymous===true;
+ if(anonymous && process.env.ALLOW_ANONYMOUS_AI!=='true')
+   throw Object.assign(new Error('الذكاء الاصطناعي للضيوف غير مفعّل على الخادم بعد.'),{status:403});
+ return {user,serviceKey,url,isAnonymous:anonymous};
 }
 export async function claimQuota(auth,kind){
  const res=await fetch(auth.url+'/rest/v1/rpc/claim_ai_quota',{
