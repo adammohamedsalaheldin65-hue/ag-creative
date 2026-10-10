@@ -16,6 +16,30 @@
 
 .editor-grid{grid-template-columns:minmax(0,1fr) 280px}.video-grid{grid-template-columns:1.05fr 1fr}@media(max-width:930px){.editor-grid,.video-grid{grid-template-columns:1fr}}
 
+/* Final mobile width and editor layout hardening. */
+@media (max-width:930px) {
+  .editor-grid, .video-grid { grid-template-columns:minmax(0,1fr); }
+  .editor-grid > *, .video-grid > *, .editor-grid .panel,
+  .editor-grid .panel-inner, .video-grid .panel,
+  .question-editor, .form-field { min-width:0; max-width:100%; }
+  .page-heading { flex-wrap:wrap; }
+}
+@media (max-width:620px) {
+  .editor-grid .grid-2 { grid-template-columns:minmax(0,1fr); }
+  .question-editor { padding:12px; }
+  .tab-buttons { width:100%;max-width:100%;display:flex;flex-wrap:wrap; }
+  .tab-buttons button { flex:1;min-width:80px;padding:9px 8px;white-space:normal; }
+  .page-heading .toolbar { flex-wrap:wrap; }
+  .paper-q, .paper-header, .question-editor { overflow-wrap:anywhere; }
+  .editor-actions button { min-width:32px; }
+  .form-field textarea,.form-field input,.form-field select { min-width:0; }
+  .section-grid > *, .builder-layout > * { min-width:0; }
+}
+@media (max-width:620px) {
+  .summary-actions { display:grid;grid-template-columns:minmax(0,1fr);gap:9px; }
+  .summary-actions > * { width:100%;min-width:0;white-space:normal; }
+}
+
 </style>
 </head>
 <body>
