@@ -14,7 +14,7 @@
 4. اربط مستودع GitHub \`adammohamedsalaheldin65-hue/ag-creative\` بمشروع **Vercel جديد**، واضبط \`Root Directory\` على \`waraqa-demo\` و\`Framework Preset\` على \`Other\`.
 5. من Vercel > Project > Settings > Environment Variables، أضف:
     - \`GEMINI_API_KEY\`: مفتاح Gemini السري (الخادم فقط).
-    - \`GEMINI_MODEL\`: \`gemini-2.5-flash-lite\` (اختياري).
+    - \`GEMINI_MODEL\`: \`gemini-3.5-flash-lite\` (اختياري).
     - \`SUPABASE_URL\`: رابط مشروع Supabase.
     - \`SUPABASE_PUBLISHABLE_KEY\`: مفتاح Supabase publishable العام.
     - \`SUPABASE_SERVICE_ROLE_KEY\`: مفتاح Supabase السري للخادم فقط.
