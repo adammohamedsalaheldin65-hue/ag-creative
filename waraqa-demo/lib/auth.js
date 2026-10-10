@@ -25,7 +25,12 @@ export async function authenticate(request){
 export async function claimQuota(auth,kind){
  const res=await fetch(auth.url+'/rest/v1/rpc/claim_ai_quota',{
   method:'POST',
-  headers:{apikey:auth.serviceKey,Authorization:'Bearer '+auth.serviceKey,'Content-Type':'application/json','Accept':'application/json'},
+  headers:{
+   apikey:auth.serviceKey,
+   ...(auth.serviceKey.startsWith('sb_secret_')?{}:{Authorization:'Bearer '+auth.serviceKey}),
+   'Content-Type':'application/json',
+   Accept:'application/json'
+  },
   body:JSON.stringify({p_user:auth.user.id,p_kind:kind}),
   signal:AbortSignal.timeout(10000)
  });
