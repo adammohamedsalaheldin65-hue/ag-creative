@@ -17,11 +17,11 @@ export function parseImages(images){
     return {inline_data:{mime_type:match[1],data:match[2]}};
   });
 }
-export async function geminiJSON(prompt,images=[]){
+export async function geminiJSON(prompt,images=[],settings={}){
   if(!process.env.GEMINI_API_KEY)throw Object.assign(new Error('الذكاء الاصطناعي غير مفعل بعد. يرجى التواصل مع إدارة الموقع.'),{status:503});
   const body={
     contents:[{role:'user',parts:[{text:prompt},...parseImages(images)]}],
-    generationConfig:{responseMimeType:'application/json',maxOutputTokens:16384}
+    generationConfig:{responseMimeType:'application/json',maxOutputTokens:Number.isSafeInteger(settings.maxOutputTokens)&&settings.maxOutputTokens>=512&&settings.maxOutputTokens<=16384?settings.maxOutputTokens:16384}
   };
   let reply;
   try {
