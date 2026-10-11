@@ -19,7 +19,9 @@ export function checkReceipt(ai,expectedName,expectedAmount){
  const expected=arabicNormalized(expectedName);
  let recipientMatch=null;
  if(expected&&shown){
-   recipientMatch=expected===shown || (expected.length>=8&&shown.includes(expected));
+   // A short registered name, e.g. "نهاد", may appear with family names.
+   // Match a complete leading name token, not a substring inside another name.
+   recipientMatch=expected===shown || (shown.startsWith(expected+' ')&&expected.length>=3);
  }
  const amount=validAmount(ai?.visibleAmount);
  const target=validAmount(expectedAmount);
