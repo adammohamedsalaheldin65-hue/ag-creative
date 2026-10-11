@@ -21,7 +21,7 @@ export async function geminiJSON(prompt,images=[]){
   if(!process.env.GEMINI_API_KEY)throw Object.assign(new Error('الذكاء الاصطناعي غير مفعل بعد. يرجى التواصل مع إدارة الموقع.'),{status:503});
   const body={
     contents:[{role:'user',parts:[{text:prompt},...parseImages(images)]}],
-    generationConfig:{responseMimeType:'application/json',temperature:0.2,maxOutputTokens:16384}
+    generationConfig:{responseMimeType:'application/json',maxOutputTokens:16384}
   };
   let reply;
   try {
@@ -33,8 +33,19 @@ export async function geminiJSON(prompt,images=[]){
     throw Object.assign(new Error('تعذر الاتصال بخدمة الذكاء الاصطناعي. حاول مرة أخرى.'),{status:503});
   }
   if(!reply.ok){
-    if(reply.status===429)throw Object.assign(new Error('تم بلوغ الحد المجاني المؤقت للذكاء الاصطناعي. جرب لاحقًا.'),{status:429});
-    throw Object.assign(new Error('تعذر إنشاء المحتوى الآن؛ حاول لاحقًا.'),{status:502});
+    // Do not expose the Google error payload or API key to browser responses.
+    // Distinguish configuration errors from quota and transient provider errors.
+    let reasonCode='';
+    try{
+      const detail=await reply.json();
+      reasonCode=String(detail?.error?.status||'').slice(0,50);
+    }catch{}
+    console.error('[Waraqa Gemini] request failed', {httpStatus:reply.status,code:reasonCode,model:MODEL});
+    if(reply.status===429)throw Object.assign(new Error('خدمة Gemini وصلت للحد المتاح من الطلبات أو الاستهلاك. دي حصة Google، مش باقة ورقة. جرّب لاحقًا أو راجع حدود Gemini API.'),{status:429});
+    if(reply.status===404)throw Object.assign(new Error('نموذج Gemini المحدد مش متاح لمفتاح المشروع. راجع إعداد GEMINI_MODEL في Vercel.'),{status:502});
+    if(reply.status===401||reply.status===403)throw Object.assign(new Error('مفتاح Gemini غير مصرح له باستخدام الخدمة. راجع GEMINI_API_KEY في Vercel وGoogle AI Studio.'),{status:502});
+    if(reply.status===400)throw Object.assign(new Error('Google رفضت إعدادات طلب Gemini. راجع إعداد GEMINI_MODEL وتفاصيل الخطأ في Vercel Logs.'),{status:502});
+    throw Object.assign(new Error('خدمة Gemini غير متاحة مؤقتًا (رمز '+reply.status+'). حاول لاحقًا.'),{status:502});
   }
   const data=await reply.json();
   const raw=(data.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('\n');
