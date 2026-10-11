@@ -162,10 +162,7 @@ async function waraqaEnsureTeacherRole(userId){
  if(!serviceConfig?.studentPortalEnabled)return;
  const {data,error}=await supabaseClient.from('waraqa_accounts').select('role').eq('user_id',userId).single();
  if(error||!data?.role)throw new Error('تعذر التحقق من نوع الحساب. راجع إعداد بوابة الطلاب.');
- if(data.role==='student'){
-   await supabaseClient.auth.signOut();
-   throw new Error('حسابك طالب، افتح بوابة الطلاب من الرابط الموجود أسفل تسجيل الدخول.');
- }
+ if(data.role==='student')throw new Error('حسابك طالب، افتح بوابة الطلاب من الرابط الموجود أسفل تسجيل الدخول.');
  if(data.role!=='teacher')throw new Error('نوع الحساب غير معروف.');
 }
 async function subscriptionLoginSubmit(e){
@@ -310,7 +307,6 @@ initializeProduction=async function(){
   }else if(user){
    try{await waraqaEnsureTeacherRole(user.id)}catch(error){
      state.authError=error.message;
-     await supabaseClient.auth.signOut().catch(()=>{});
      state.user=null;state.authRequested=true;
      render();return;
    }
