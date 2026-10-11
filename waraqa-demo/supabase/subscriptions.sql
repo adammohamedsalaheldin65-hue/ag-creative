@@ -197,7 +197,7 @@ GRANT EXECUTE ON FUNCTION public.waraqa_resolve_payment(uuid,boolean,text,text) 
 CREATE OR REPLACE FUNCTION public.claim_subscription_ai_quota(p_user uuid,p_kind text)
 RETURNS TABLE(allowed boolean,reason text,remaining integer)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
-AS $
+AS $$
 DECLARE
   utc_day timestamptz := date_trunc('day',now() at time zone 'UTC') at time zone 'UTC';
   minute_start timestamptz := date_trunc('minute',now());
@@ -241,7 +241,7 @@ BEGIN
  RETURN QUERY SELECT true,(CASE WHEN premium_active THEN 'premium' ELSE 'basic' END)::text,
                      (CASE WHEN premium_active THEN -1 ELSE 2-daily_count END);
 END;
-$;
+$$;
 REVOKE ALL ON FUNCTION public.claim_subscription_ai_quota(uuid,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.claim_subscription_ai_quota(uuid,text) TO service_role;
 
