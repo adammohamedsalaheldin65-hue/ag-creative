@@ -10,9 +10,13 @@ CREATE TABLE IF NOT EXISTS public.teacher_subscriptions (
   trial_started_at timestamptz NOT NULL,
   trial_ends_at timestamptz NOT NULL,
   paid_until timestamptz,
+  plan text NOT NULL DEFAULT 'trial' CHECK (plan IN ('trial','basic','premium')),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT subscription_trial_period CHECK (trial_ends_at > trial_started_at)
 );
+ALTER TABLE public.teacher_subscriptions
+  ADD COLUMN IF NOT EXISTS plan text NOT NULL DEFAULT 'trial'
+    CHECK (plan IN ('trial','basic','premium'));
 ALTER TABLE public.teacher_subscriptions ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.teacher_subscriptions FROM public,anon,authenticated;
 GRANT SELECT,INSERT,UPDATE ON public.teacher_subscriptions TO service_role;
@@ -49,6 +53,8 @@ CREATE TABLE IF NOT EXISTS public.subscription_payments (
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   receipt_path text NOT NULL,
   reference_note text NOT NULL DEFAULT '',
+  plan text NOT NULL DEFAULT 'basic' CHECK (plan IN ('basic','premium')),
+  amount_egp integer NOT NULL DEFAULT 50 CHECK (amount_egp>0 AND amount_egp<=100000),
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
   ai_result jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(ai_result)='object'),
   admin_note text NOT NULL DEFAULT '',
@@ -56,6 +62,10 @@ CREATE TABLE IF NOT EXISTS public.subscription_payments (
   created_at timestamptz NOT NULL DEFAULT now(),
   resolved_at timestamptz
 );
+ALTER TABLE public.subscription_payments
+  ADD COLUMN IF NOT EXISTS plan text NOT NULL DEFAULT 'basic' CHECK (plan IN ('basic','premium'));
+ALTER TABLE public.subscription_payments
+  ADD COLUMN IF NOT EXISTS amount_egp integer NOT NULL DEFAULT 50 CHECK (amount_egp>0 AND amount_egp<=100000);
 CREATE INDEX IF NOT EXISTS subscription_payments_user_time ON public.subscription_payments(user_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS subscription_payments_status_time ON public.subscription_payments(status,created_at DESC);
 CREATE UNIQUE INDEX IF NOT EXISTS subscription_payments_verified_bank_ref
@@ -154,14 +164,15 @@ BEGIN
     UPDATE public.subscription_payments
        SET verified_transaction_ref=trim(p_verified_ref)
     WHERE id=p_payment_id;
-    INSERT INTO public.teacher_subscriptions(user_id,trial_started_at,trial_ends_at,paid_until)
+    INSERT INTO public.teacher_subscriptions(user_id,trial_started_at,trial_ends_at,paid_until,plan)
     SELECT u.id,u.created_at,u.created_at+interval '1 month',
-      GREATEST(now(),u.created_at+interval '1 month')+interval '1 month'
+      GREATEST(now(),u.created_at+interval '1 month')+interval '1 month',p.plan
     FROM auth.users u WHERE u.id=p.user_id
     ON CONFLICT(user_id) DO UPDATE
        SET paid_until=GREATEST(now(),public.teacher_subscriptions.trial_ends_at,
           COALESCE(public.teacher_subscriptions.paid_until,'-infinity'::timestamptz))
           +interval '1 month',
+           plan=EXCLUDED.plan,
            updated_at=now()
     RETURNING paid_until INTO until_date;
   END IF;
@@ -175,7 +186,63 @@ BEGIN
 END;
 $$;
 REVOKE ALL ON FUNCTION public.waraqa_resolve_payment(uuid,boolean,text,text) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.waraqa_resolve_payment(uuid,boolean,text) TO service_role;
+GRANT EXECUTE ON FUNCTION public.waraqa_resolve_payment(uuid,boolean,text,text) TO service_role;
+
+-- Paid plans have distinct daily AI policies.
+-- Trial/basic: 3 AI jobs per UTC day per account.
+-- Premium: NO per-account DAILY quota, but 8/minute burst protection
+-- and 200/minute site-wide protection to control abuse and provider costs.
+-- Gemini provider/model account limitations can still apply.
+CREATE OR REPLACE FUNCTION public.claim_ai_quota(p_user uuid,p_kind text)
+RETURNS TABLE(allowed boolean,reason text,remaining integer)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $
+DECLARE
+  utc_day timestamptz := date_trunc('day',now() at time zone 'UTC') at time zone 'UTC';
+  minute_start timestamptz := date_trunc('minute',now());
+  current_plan text;
+  current_trial timestamptz;
+  current_paid timestamptz;
+  premium_active boolean;
+  daily_count integer;
+  short_burst_count integer;
+  global_burst_count integer;
+BEGIN
+ IF p_user IS NULL OR p_kind NOT IN ('exam','storyboard') THEN
+    RETURN QUERY SELECT false,'invalid'::text,0;RETURN;
+ END IF;
+ SELECT s.plan,s.trial_ends_at,s.paid_until
+ INTO current_plan,current_trial,current_paid
+ FROM public.teacher_subscriptions s WHERE s.user_id=p_user;
+ IF current_plan IS NULL OR GREATEST(current_trial,COALESCE(current_paid,'-infinity'::timestamptz))<=now() THEN
+    RETURN QUERY SELECT false,'expired'::text,0;RETURN;
+ END IF;
+ premium_active := current_plan='premium' AND current_paid>now();
+ PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('waraqa-plan-ai-'||minute_start::text,0));
+ SELECT count(*) INTO short_burst_count
+   FROM public.ai_requests WHERE user_id=p_user AND created_at>=minute_start;
+ IF short_burst_count>=8 THEN
+   RETURN QUERY SELECT false,'burst'::text,0;RETURN;
+ END IF;
+ SELECT count(*) INTO global_burst_count
+   FROM public.ai_requests WHERE created_at>=minute_start;
+ IF global_burst_count>=200 THEN
+   RETURN QUERY SELECT false,'global_burst'::text,0;RETURN;
+ END IF;
+ IF NOT premium_active THEN
+   SELECT count(*) INTO daily_count
+   FROM public.ai_requests WHERE user_id=p_user AND created_at>=utc_day;
+   IF daily_count>=3 THEN
+      RETURN QUERY SELECT false,'daily'::text,0;RETURN;
+   END IF;
+ END IF;
+ INSERT INTO public.ai_requests(user_id,kind)VALUES(p_user,p_kind);
+ RETURN QUERY SELECT true,(CASE WHEN premium_active THEN 'premium' ELSE 'basic' END)::text,
+                     (CASE WHEN premium_active THEN -1 ELSE 2-daily_count END);
+END;
+$;
+REVOKE ALL ON FUNCTION public.claim_ai_quota(uuid,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_ai_quota(uuid,text) TO service_role;
 
 COMMIT;
 
