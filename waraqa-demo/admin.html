@@ -65,7 +65,9 @@ function render(){
  const displayCheck=(value)=>value===true?'✅ مطابق':value===false?'❌ غير مطابق':'⚠️ غير واضح';
  return '<section class="panel"><div class="row"><h3>'+(pending?'⏳ قيد المراجعة':p.status==='approved'?'✅ تم التأكيد':'❌ مرفوض')+'</h3>'+
  '<small class="muted">'+esc(date(p.createdAt))+'</small></div>'+
- '<div class="facts">رقم الطلب: '+esc(p.id)+'\nمعرّف المعلم: '+esc(p.userId)+'\nمرجع المعلم: '+esc(p.referenceNote||'غير مذكور')+
+ '<div class="facts">رقم الطلب: '+esc(p.id)+'\nمعرّف المعلم: '+esc(p.userId)+'\nالباقة المطلوبة: '+esc(p.plan==='premium'?'المتقدمة':'الأساسية')+
+ '\nالمبلغ الواجب وصوله بالفعل: '+esc(p.amountEGP)+' جنيه'+
+ '\nمرجع المعلم: '+esc(p.referenceNote||'غير مذكور')+
  '\nإشارة الفحص الآلي: '+(ai.appearsSuccessful?'الصورة تبدو كإشعار نجاح (غير مؤكد)':'غير مؤكد')+
  '\nمبلغ ظاهر بالصورة: '+esc(ai.visibleAmount??'غير مقروء')+
  '\nمستفيد ظاهر بالصورة: '+esc(ai.visibleRecipient||'غير واضح')+
@@ -80,7 +82,7 @@ function render(){
  (pending&&p.proofUrl?'<a href="'+esc(p.proofUrl)+'" target="_blank" rel="noopener noreferrer"><img class="proof" src="'+esc(p.proofUrl)+'" alt="صورة تحويل إنستا باي"/></a>':pending?'<p>تعذرت معاينة الصورة. راجع ملفات الدفع في Supabase Storage.</p>':'')+
  (pending?'<div><label>ملاحظة الإدارة (تظهر للمعلم عند الرفض)</label><textarea id="note-'+esc(p.id)+'" rows="2" maxlength="400" placeholder="سبب الرفض أو رقم التحويل المطابق"></textarea>'+
  '<div style="margin:10px 0"><label>رقم العملية الفعلي من كشف الحساب أو تطبيق إنستا باي (إجباري للموافقة)</label><input id="bank-ref-'+esc(p.id)+'" minlength="6" maxlength="140" placeholder="الرقم المرجعي المؤكد من حساب المستفيد" /></div>'+
- '<label class="row" style="margin:12px 0"><input type="checkbox" id="bank-'+esc(p.id)+'"/><b>تأكدت بنفسي من وصول المبلغ الصحيح في كشف الحساب/إنستا باي، وليس بالصورة فقط</b></label>'+
+ '<label class="row" style="margin:12px 0"><input type="checkbox" id="bank-'+esc(p.id)+'"/><b>تأكدت من وصول **نفس مبلغ الباقة أعلاه** إلى نهاد من كشف حساب إنستا باي الحقيقي، ولم يُستخدم رقم العملية من قبل</b></label>'+
  '<div class="row"><button data-id="'+esc(p.id)+'" data-decision="approve">تأكيد الدفع وتفعيل شهر</button><button class="danger" data-id="'+esc(p.id)+'" data-decision="reject">رفض الإيصال</button></div></div>':'<p class="muted">حُسم الطلب '+esc(date(p.resolvedAt))+'</p>')+
  '</section>';
  }).join('')||'<div class="panel"><p>لا توجد طلبات دفع بعد.</p></div>';
