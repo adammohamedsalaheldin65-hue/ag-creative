@@ -16,6 +16,7 @@ let proofData='';
 let subscriptionError='';
 let subscriptionChecking=false;
 let renewalOpen=false;
+let selectedSubscriptionPlan='basic';
 
 const isSubscriptionMode=()=>serviceConfig?.subscriptionEnabled===true;
 function localSubscriptionActive(){
@@ -27,7 +28,8 @@ function subscriptionNotice(){
  const st=state.subscriptionStatus||{};
  const active=localSubscriptionActive();
  const remaining=active?Math.max(0,Math.ceil((Date.parse(st.accessEndsAt)-Date.now())/86400000)):0;
- return '<div class="subscription-tag">'+(active?('🟢 الاشتراك ساري • '+remaining+' يوم متبقٍ • حتى '+E(localDate(st.accessEndsAt))):'🔴 الاشتراك منتهي')+'</div>';
+ const planLabel=st.plan==='premium'?'المتقدمة':st.plan==='basic'?'الأساسية':'التجربة المجانية';
+ return '<div class="subscription-tag">'+(active?('🟢 '+planLabel+' • '+remaining+' يوم متبقٍ • حتى '+E(localDate(st.accessEndsAt))):'🔴 الاشتراك منتهي')+'</div>';
 }
 
 function subscriptionLoginMarkup(){
@@ -60,7 +62,10 @@ function subscriptionPaywall(){
  const pending=st.payments?.some(p=>p.status==='pending');
  const isSetupMissing=!st.trialEndsAt&&!subscriptionError;
  const hasPrice=!!st.paymentReady;
- const price=st.priceEGP;
+ const plans=st.plans||{};
+ const selected=plans[selectedSubscriptionPlan]||plans.basic||{name:'الأساسية',priceEGP:st.priceEGP||50};
+ const price=selected.priceEGP;
+ const isPremiumLocked=st.plan==='premium'&&Date.parse(st.paidUntil)>Date.now();
  const destination=st.destination||'';
  const accountName=st.accountName||'';
  return '<div class="subscription-page"><section class="subscription-card">'+logo()+
@@ -68,14 +73,27 @@ function subscriptionPaywall(){
  '<p class="subheading">مرحبًا '+E(state.user?.name||'يا معلم')+'. '+(subscriptionError?E(subscriptionError):isSetupMissing?'الاشتراكات لم تُجهز على قاعدة البيانات بعد. تواصل مع الإدارة.':'امتحاناتك محفوظة، وستعود إليها بعد تأكيد الاشتراك.')+'</p>'+
  (st.trialEndsAt?'<div class="subscription-line">🎁 بداية التجربة: <b>'+E(localDate(st.trialStartedAt))+'</b></div><div class="subscription-line">🗓️ نهاية التجربة المجانية: <b>'+E(localDate(st.trialEndsAt))+'</b></div>':'')+
  (st.paidUntil?'<div class="subscription-line">✅ اشتراك مدفوع حتى: <b>'+E(localDate(st.paidUntil))+'</b></div>':'')+
- (hasPrice?'<div class="subscription-price">'+E(price)+' جنيه <small> / شهر</small></div><p class="mini-note">اسم المستفيد: <strong>'+E(accountName)+'</strong></p><p class="mini-note">حوّل قيمة الاشتراك إلى عنوان إنستا باي:</p><div class="subscription-destination" dir="ltr">'+E(destination)+'</div><p class="mini-note spaced">اتأكد بنفسك إن الاسم والمبلغ ظاهرين صح في تطبيق إنستا باي قبل تأكيد التحويل.</p>':
-   '<div class="notice">لم تضف الإدارة سعر الاشتراك أو عنوان إنستا باي بعد، لذلك استقبال التحويلات متوقف مؤقتًا.</div>')+
+ (hasPrice?'<div class="subscription-plans">'+
+  ['basic','premium'].map(id=>{
+   const p=plans[id]||{},picked=selectedSubscriptionPlan===id,locked=isPremiumLocked&&id==='basic';
+   return '<button type="button" class="subscription-plan '+(picked?'chosen':'')+'" data-action="choose-plan" data-plan="'+id+'" '+(locked?'disabled title="لا يمكن تحويل باقة متقدمة نشطة إلى أساسية قبل انتهاء مدتها"':'')+'>'+
+   '<b>'+(id==='basic'?'📘 الأساسية':'✨ المتقدمة')+'</b>'+
+   '<strong>'+E(p.priceEGP??(id==='premium'?200:50))+' جنيه/شهر</strong>'+
+   '<small>'+(id==='basic'?'3 عمليات ذكاء اصطناعي يوميًا':'بدون حد يومي لحساب المعلم • حماية من الطلبات الكثيفة')+'</small>'+
+   (picked?'<span class="subscription-choice">✓ الباقة المختارة</span>':'')+'</button>';
+  }).join('')+'</div>'+
+ '<div class="subscription-price">'+E(price)+' جنيه <small> / شهر — '+E(selected.name||'الباقة المختارة')+'</small></div>'+
+ '<p class="mini-note">اسم المستفيد: <strong>'+E(accountName)+'</strong></p>'+
+ '<p class="mini-note">حوّل المبلغ الموضح إلى إنستا باي:</p><div class="subscription-destination" dir="ltr">'+E(destination)+'</div>'+
+ '<a class="btn btn-primary spaced" style="display:inline-flex;text-decoration:none;justify-content:center;width:100%" href="'+E(destination)+'" target="_blank" rel="noopener noreferrer">📲 افتح إنستا باي لتحويل '+E(price)+' جنيه</a>'+
+ '<p class="mini-note spaced">اتأكد إن اسم المستفيد نهاد، والمبلغ مطابق للباقة المختارة قبل التحويل، واحتفظ بصورة نجاح العملية.</p>':
+ '<div class="notice">إعدادات أسعار الباقات أو رابط إنستا باي غير مكتملة بعد، لذلك استقبال التحويلات متوقف مؤقتًا.</div>')+
  (pending?'<div class="notice blue spaced">⏳ وصل إيصالك وهو الآن قيد المراجعة. فحص الصورة بالذكاء الاصطناعي لا يعني وصول المال؛ سيتم تفعيل الشهر بعد مطابقة التحويل الحقيقي.</div>':
    hasPrice&&!isSetupMissing&&!subscriptionError?'<form id="payment-form" class="spaced">'+
    '<div class="form-field"><label for="payment-file">ارفع صورة نجاح تحويل إنستا باي</label><input id="payment-file" class="field" type="file" accept="image/png,image/jpeg,image/webp" required/><p class="hint">PNG أو JPG أو WEBP، حتى 1.95 ميجابايت بعد التجهيز.</p></div>'+
    '<div class="form-field spaced"><label for="payment-note">رقم العملية أو مرجع التحويل (اختياري)</label><input id="payment-note" class="field" maxlength="160" placeholder="اكتب رقم العملية الظاهر في الإيصال"/></div>'+
    '<label class="subscription-consent spaced"><input id="payment-consent" type="checkbox" required/> أوافق على إرسال صورة الإيصال لخادم ورقة وخدمة Gemini لفحصها مبدئيًا، وأفهم أن التفعيل يتطلب تأكيد التحويل من الإدارة.</label>'+
-   '<button type="submit" class="btn btn-primary spaced" style="width:100%">📤 إرسال الإيصال للمراجعة</button></form>':'')+
+   '<button type="submit" class="btn btn-primary spaced" style="width:100%">📤 إرسال إيصال '+E(price)+' جنيه للمراجعة</button></form>':'')+
  paymentHistoryHTML()+
  '<div class="toolbar spaced" style="justify-content:space-between"><button class="btn btn-outline" data-action="refresh-subscription">↻ تحديث حالة الاشتراك</button>'+
  (renewalOpen&&localSubscriptionActive()?'<button class="btn btn-outline" data-action="close-renewal">← العودة لحسابي</button>':'')+
@@ -134,6 +152,7 @@ async function subscriptionRefresh(){
   const json=await resp.json().catch(()=>({}));
   if(!resp.ok)throw new Error(json.error||'تعذّر قراءة الاشتراك');
   state.subscriptionStatus=json;
+  if(json.plan==='premium'&&Date.parse(json.paidUntil)>Date.now())selectedSubscriptionPlan='premium';
  }catch(error){
   subscriptionError=error.message||'تعذر التحقق من الاشتراك';
   state.subscriptionStatus=null; // Fail closed; no temporary or local trial bypass.
@@ -181,7 +200,7 @@ signOutTeacher=async function(){
  try{stopScenes();await supabaseClient?.auth.signOut()}catch{}
  state.user=null;state.records=[];state.exam=null;state.subscriptionStatus=null;
  state.authRequested=true;state.authView='login';state.authError='';state.aiAvailable=false;
- state.draft=makeDraft();renewalOpen=false;subscriptionError='';proofData='';
+ state.draft=makeDraft();renewalOpen=false;subscriptionError='';proofData='';selectedSubscriptionPlan='basic';
  render();
 };
 async function uploadPayment(){
@@ -193,7 +212,7 @@ async function uploadPayment(){
  try{
   const response=await fetch('/api/payment-proof',{
    method:'POST',headers:await aiHeaders(),
-   body:JSON.stringify({image:proofData,referenceNote:note})
+   body:JSON.stringify({image:proofData,referenceNote:note,plan:selectedSubscriptionPlan})
   });
   const json=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(json.error||'تعذّر إرسال الإيصال');
@@ -217,6 +236,16 @@ act=async function(action,button){
  if(!isSubscriptionMode())return legacySubscriptionAct(action,button);
  if(action==='auth-mode'){state.authView=button.dataset.mode==='signup'?'signup':'login';state.authError='';render();return}
  if(action==='reset-password')return requestPasswordReset();
+ if(action==='choose-plan'){
+  const desired=button.dataset.plan;
+  if(!['basic','premium'].includes(desired))return;
+  if(state.subscriptionStatus?.plan==='premium'&&Date.parse(state.subscriptionStatus.paidUntil)>Date.now()&&desired==='basic'){
+   toast('لا يمكن تخفيض باقة متقدمة نشطة قبل نهاية مدتها');return;
+  }
+  selectedSubscriptionPlan=desired;
+  proofData='';
+  render();return;
+ }
  if(action==='logout')return signOutTeacher();
  if(action==='refresh-subscription'){await subscriptionRefresh();render();return}
  if(action==='open-renewal'){
