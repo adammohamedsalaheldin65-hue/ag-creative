@@ -2,11 +2,13 @@
 export function billingSettings(){
   const price=Number(process.env.SUBSCRIPTION_PRICE_EGP||0);
   const destination=String(process.env.INSTAPAY_DESTINATION||'').trim().slice(0,160);
+  const accountName=String(process.env.INSTAPAY_ACCOUNT_NAME||'').trim().slice(0,140);
   return {
     enabled:process.env.SUBSCRIPTION_ENABLED==='true',
     price:Number.isSafeInteger(price)&&price>0&&price<=100000?price:null,
     destination,
-    paymentReady:!!(destination&&Number.isSafeInteger(price)&&price>0&&price<=100000)
+    accountName,
+    paymentReady:!!(destination&&accountName&&Number.isSafeInteger(price)&&price>0&&price<=100000)
   };
 }
 export function serviceConfig(){
