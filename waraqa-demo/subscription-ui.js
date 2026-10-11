@@ -45,7 +45,7 @@ function subscriptionLoginMarkup(){
  '<div class="form-field spaced"><label for="login-password">كلمة المرور</label><input id="login-password" class="field" type="password" required minlength="8" autocomplete="'+(signup?'new-password':'current-password')+'" placeholder="8 أحرف أو أكثر"/></div>'+
  '<button class="btn btn-primary spaced" type="submit" style="width:100%">'+(signup?'إنشاء حساب وبدء الشهر مجانًا':'تسجيل الدخول')+' ←</button>'+
  '<div class="toolbar spaced" style="justify-content:space-between"><button type="button" class="text-action" data-action="auth-mode" data-mode="'+(signup?'login':'signup')+'">'+(signup?'لديك حساب بالفعل':'مستخدم جديد؟ ابدأ مجانًا')+'</button>'+
- (signup?'':'<button type="button" class="text-action" data-action="reset-password">نسيت كلمة المرور؟</button>')+'</div>'+
+ (signup?'':'<button type="button" class="text-action" data-action="reset-password">نسيت كلمة المرور؟</button>')+'</div>'+ '<p class="mini-note spaced">طالب؟ <a href="/student.html" style="color:#6557e9;font-weight:800">ادخل بوابة الطلاب من هنا ↗</a></p>'
  '<p class="mini-note spaced">بعد نهاية الفترة المجانية، يتطلب استخدام المنصة اشتراكًا شهريًا. لا يُحتسب الشهر من تاريخ أول زيارة فقط بل من تاريخ إنشاء الحساب المسجّل في قاعدة البيانات.</p>'+
  '</form></div></div>';
 }
@@ -158,6 +158,16 @@ async function subscriptionRefresh(){
   state.subscriptionStatus=null; // Fail closed; no temporary or local trial bypass.
  }finally{subscriptionChecking=false}
 }
+async function waraqaEnsureTeacherRole(userId){
+ if(!serviceConfig?.studentPortalEnabled)return;
+ const {data,error}=await supabaseClient.from('waraqa_accounts').select('role').eq('user_id',userId).single();
+ if(error||!data?.role)throw new Error('تعذر التحقق من نوع الحساب. راجع إعداد بوابة الطلاب.');
+ if(data.role==='student'){
+   await supabaseClient.auth.signOut();
+   throw new Error('حسابك طالب، افتح بوابة الطلاب من الرابط الموجود أسفل تسجيل الدخول.');
+ }
+ if(data.role!=='teacher')throw new Error('نوع الحساب غير معروف.');
+}
 async function subscriptionLoginSubmit(e){
  e?.preventDefault?.();
  if(!supabaseClient)return toast('الخادم غير متصل. حاول مرة أخرى.');
@@ -169,7 +179,7 @@ async function subscriptionLoginSubmit(e){
  busy(true,signup?'جارٍ إنشاء حسابك والشهر المجاني...':'جارٍ تسجيل الدخول...');
  try{
   const response=signup
-    ?await supabaseClient.auth.signUp({email,password,options:{data:{full_name:name}}})
+    ?await supabaseClient.auth.signUp({email,password,options:{data:{full_name:name,waraqa_role:'teacher'}}})
     :await supabaseClient.auth.signInWithPassword({email,password});
   if(response.error)throw response.error;
   if(signup&&!response.data?.session){
@@ -179,6 +189,7 @@ async function subscriptionLoginSubmit(e){
   }
   const user=response.data?.user;
   if(!user||user.is_anonymous)throw new Error('استخدم حساب بريد إلكتروني حقيقي');
+  await waraqaEnsureTeacherRole(user.id);
   state.user=userFromAuth(user);
   state.draft.teacher=state.user.name;
   state.authRequested=false;state.authError='';
@@ -297,6 +308,12 @@ initializeProduction=async function(){
   if(user?.is_anonymous){
    await supabaseClient.auth.signOut(); // Guests cannot start trials.
   }else if(user){
+   try{await waraqaEnsureTeacherRole(user.id)}catch(error){
+     state.authError=error.message;
+     await supabaseClient.auth.signOut().catch(()=>{});
+     state.user=null;state.authRequested=true;
+     render();return;
+   }
    state.user=userFromAuth(user);
    state.draft.teacher=state.user.name;
    state.authRequested=false;
