@@ -1,6 +1,7 @@
 import {authenticate} from '../lib/auth.js';
 import {billingSettings,getSubscription,supabaseRest,uploadProof,deleteProof} from '../lib/billing.js';
 import {geminiJSON,result,problem,fail} from '../lib/gemini.js';
+import {checkReceipt} from '../lib/receipt-check.js';
 
 export default {
  async fetch(request){
@@ -47,19 +48,25 @@ export default {
       'أعد JSON فقط: {"looksLikeReceipt":boolean,"appearsSuccessful":boolean,"visibleAmount":number|null,"visibleRecipient":string,"transferReference":string,"note":string}.',
       'appearsSuccessful يعني أن واجهة الصورة تعرض حالة نجاح واضحة؛ هذا ليس تأكيدًا من البنك أو إنستا باي.',
       'لا تخترع رقم عملية أو اسم مستفيد أو مبلغ غير مقروء. إذا الصورة مشوشة عبّر عن عدم اليقين.',
-      'المبلغ المطلوب: '+settings.price+' جنيه؛ جهة الدفع المسجّلة بالموقع: '+settings.destination+'.',
+      'المبلغ المطلوب: '+settings.price+' جنيه. اسم المستفيد الصحيح: '+settings.accountName+'. جهة الدفع المسجّلة: '+settings.destination+'.',
+      'انسخ اسم المستفيد الظاهر في سكرين شوت التحويل نفسه كما يظهر؛ لا تكتب الاسم المتوقع بدلًا منه لو مش موجود.',
+      'اقرأ مبلغ التحويل الظاهر، لا رصيد الحساب ولا رسوم الخدمة ولا المبلغ الإجمالي المختلف.',
       'لا تأذن بتفعيل الحساب ولا تخرج بحكم أن النقود وصلت. مجرد تلخيص بصري مبدئي.',
     ].join('\n'),[{data:input.image}]);
     aiResult={
       classification:'inspected',
       looksLikeReceipt:output?.looksLikeReceipt===true,
       appearsSuccessful:output?.appearsSuccessful===true,
-      visibleAmount:Number.isFinite(Number(output?.visibleAmount))?Number(output.visibleAmount):null,
+      visibleAmount:output?.visibleAmount!==null&&output?.visibleAmount!==undefined&&output?.visibleAmount!==''&&Number.isFinite(Number(output.visibleAmount))?Number(output.visibleAmount):null,
       visibleRecipient:String(output?.visibleRecipient||'').slice(0,120),
       transferReference:String(output?.transferReference||'').slice(0,100),
       note:String(output?.note||'').slice(0,240)
     };
    }catch{ /* We still accept uploads for manual verification. */ }
+   // Compare exact subscription amount and OCR recipient to configured expected values.
+   // Deliberately DOES NOT approve or reject the payment: screenshot is untrusted.
+   const validation=checkReceipt(aiResult,settings.accountName,settings.price);
+   aiResult={...aiResult,validation};
    // Even when AI says 'successful', payment stays pending until bank-side verification.
    await uploadProof(path,bytes,mime);
    try{
@@ -75,7 +82,7 @@ export default {
       return problem('لديك إيصال آخر تحت المراجعة',409);
     throw e;
    }
-   return result({id,status:'pending',message:'وصل الإيصال. الذكاء الاصطناعي فحص شكله مبدئيًا، وفي انتظار الإدارة لتأكيد وصول التحويل الحقيقي.'},202);
+   return result({id,status:'pending',receiptCheck:validation,message:'وصل الإيصال وفُحص اسم المستفيد والمبلغ مبدئيًا. لا يتم فتح الحساب إلا بعد تأكيد وصول التحويل الحقيقي.'},202);
   }catch(e){return fail(e)}
  }
 };
