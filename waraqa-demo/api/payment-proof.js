@@ -1,5 +1,5 @@
 import {authenticate} from '../lib/auth.js';
-import {billingSettings,getSubscription,supabaseRest,uploadProof,deleteProof} from '../lib/billing.js';
+import {billingSettings,selectedPlan,getSubscription,supabaseRest,uploadProof,deleteProof} from '../lib/billing.js';
 import {geminiJSON,result,problem,fail} from '../lib/gemini.js';
 import {checkReceipt} from '../lib/receipt-check.js';
 
@@ -9,12 +9,13 @@ export default {
    if(request.method!=='POST')return problem('طريقة الطلب غير مدعومة',405);
    const settings=billingSettings();
    if(!settings.enabled)return problem('الاشتراكات غير مفعلة',503);
-   if(!settings.paymentReady)return problem('لم تحدد الإدارة قيمة الاشتراك أو عنوان إنستا باي بعد',503);
+   if(!settings.paymentReady)return problem('إعدادات الدفع غير مكتملة بعد',503);
    const auth=await authenticate(request,{requireAccess:false});
    if(auth.isAnonymous)return problem('أنشئ حسابًا ببريد إلكتروني أولًا',401);
    if(Number(request.headers.get('content-length')||0)>2_850_000)return problem('حجم الصورة كبير جدًا (الحد الأقصى 2 ميجابايت)',413);
    let input;
    try{input=await request.json()}catch{return problem('الصورة أو البيانات غير صحيحة',400)}
+   const plan=selectedPlan(settings,input?.plan||'basic');
    const note=String(input?.referenceNote||'').trim().slice(0,160);
    const match=String(input?.image||'').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
    if(!match)return problem('ارفع صورة PNG أو JPG أو WEBP',400);
@@ -28,7 +29,10 @@ export default {
        ?bytes[0]===255&&bytes[1]===216&&bytes[2]===255
        :String.fromCharCode(...bytes.slice(0,4))==='RIFF'&&String.fromCharCode(...bytes.slice(8,12))==='WEBP';
    if(!valid)return problem('الملف ليس صورة صالحة من النوع المحدد',400);
-   if(!(await getSubscription(auth.user.id)))return problem('بيانات الاشتراك غير موجودة. يجب تشغيل ملف SQL أولًا.',503);
+   const sub=await getSubscription(auth.user.id);
+   if(!sub)return problem('بيانات الاشتراك غير موجودة. يجب تشغيل ملف SQL أولًا.',503);
+   if(sub.plan==='premium'&&Date.parse(sub.paid_until)>Date.now()&&plan.id==='basic')
+     return problem('لا يمكن التحويل للباقة الأساسية قبل انتهاء مدة الباقة المتقدمة؛ يمكنك تجديد المتقدمة الآن.',409);
    const query='subscription_payments?select=id,created_at,status&user_id=eq.'+encodeURIComponent(auth.user.id)+'&order=created_at.desc&limit=10';
    const history=await supabaseRest(query);
    if(history.some(x=>x.status==='pending'))return problem('لديك إيصال قيد المراجعة بالفعل؛ انتظر رد الإدارة',409);
@@ -48,8 +52,7 @@ export default {
       'أعد JSON فقط: {"looksLikeReceipt":boolean,"appearsSuccessful":boolean,"visibleAmount":number|null,"visibleRecipient":string,"transferReference":string,"note":string}.',
       'appearsSuccessful يعني أن واجهة الصورة تعرض حالة نجاح واضحة؛ هذا ليس تأكيدًا من البنك أو إنستا باي.',
       'لا تخترع رقم عملية أو اسم مستفيد أو مبلغ غير مقروء. إذا الصورة مشوشة عبّر عن عدم اليقين.',
-      'المبلغ المطلوب: '+settings.price+' جنيه. اسم المستفيد الصحيح: '+settings.accountName+'. جهة الدفع المسجّلة: '+settings.destination+'.',
-      'انسخ اسم المستفيد الظاهر في سكرين شوت التحويل نفسه كما يظهر؛ لا تكتب الاسم المتوقع بدلًا منه لو مش موجود.',
+      'انسخ اسم المستفيد الحقيقي الظاهر في الصورة فقط، والمبلغ الذي تم تحويله. لا تستخدم أي توقعات خارج الصورة.',
       'اقرأ مبلغ التحويل الظاهر، لا رصيد الحساب ولا رسوم الخدمة ولا المبلغ الإجمالي المختلف.',
       'لا تأذن بتفعيل الحساب ولا تخرج بحكم أن النقود وصلت. مجرد تلخيص بصري مبدئي.',
     ].join('\n'),[{data:input.image}]);
@@ -65,7 +68,7 @@ export default {
    }catch{ /* We still accept uploads for manual verification. */ }
    // Compare exact subscription amount and OCR recipient to configured expected values.
    // Deliberately DOES NOT approve or reject the payment: screenshot is untrusted.
-   const validation=checkReceipt(aiResult,settings.accountName,settings.price);
+   const validation=checkReceipt(aiResult,settings.accountName,plan.priceEGP);
    aiResult={...aiResult,validation};
    // Even when AI says 'successful', payment stays pending until bank-side verification.
    await uploadProof(path,bytes,mime);
@@ -73,7 +76,7 @@ export default {
     const data=await supabaseRest('subscription_payments',{
       method:'POST',
       headers:{Prefer:'return=representation'},
-      body:[{id,user_id:auth.user.id,receipt_path:path,reference_note:note,status:'pending',ai_result:aiResult}]
+      body:[{id,user_id:auth.user.id,receipt_path:path,reference_note:note,plan:plan.id,amount_egp:plan.priceEGP,status:'pending',ai_result:aiResult}]
     });
     if(!Array.isArray(data)||data[0]?.id!==id)throw new Error('تعذر تسجيل طلب التحويل');
    }catch(e){
@@ -82,7 +85,7 @@ export default {
       return problem('لديك إيصال آخر تحت المراجعة',409);
     throw e;
    }
-   return result({id,status:'pending',receiptCheck:validation,message:'وصل الإيصال وفُحص اسم المستفيد والمبلغ مبدئيًا. لا يتم فتح الحساب إلا بعد تأكيد وصول التحويل الحقيقي.'},202);
+   return result({id,status:'pending',plan:plan.id,expectedAmountEGP:plan.priceEGP,receiptCheck:validation,message:'وصل الإيصال وفُحص اسم المستفيد والمبلغ مبدئيًا. لا يتم فتح الحساب إلا بعد تأكيد وصول التحويل الحقيقي.'},202);
   }catch(e){return fail(e)}
  }
 };
