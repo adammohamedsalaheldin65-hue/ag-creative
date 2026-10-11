@@ -52,11 +52,15 @@ CREATE TABLE IF NOT EXISTS public.subscription_payments (
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
   ai_result jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(ai_result)='object'),
   admin_note text NOT NULL DEFAULT '',
+  verified_transaction_ref text,
   created_at timestamptz NOT NULL DEFAULT now(),
   resolved_at timestamptz
 );
 CREATE INDEX IF NOT EXISTS subscription_payments_user_time ON public.subscription_payments(user_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS subscription_payments_status_time ON public.subscription_payments(status,created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS subscription_payments_verified_bank_ref
+ ON public.subscription_payments(lower(verified_transaction_ref))
+ WHERE verified_transaction_ref IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS subscription_payments_one_pending
  ON public.subscription_payments(user_id) WHERE status='pending';
 ALTER TABLE public.subscription_payments ENABLE ROW LEVEL SECURITY;
@@ -130,7 +134,7 @@ CREATE POLICY "Teachers delete own images" ON storage.objects FOR DELETE TO auth
 
 -- Atomic and one-time approval: requires service role AND an admin token at API layer.
 CREATE OR REPLACE FUNCTION public.waraqa_resolve_payment(
-  p_payment_id uuid,p_approve boolean,p_admin_note text DEFAULT ''
+  p_payment_id uuid,p_approve boolean,p_admin_note text DEFAULT '',p_verified_ref text DEFAULT ''
 )
 RETURNS TABLE(payment_id uuid,new_status text,paid_through timestamptz)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
@@ -142,6 +146,14 @@ BEGIN
   IF p.id IS NULL THEN RAISE EXCEPTION 'payment_not_found'; END IF;
   IF p.status <> 'pending' THEN RAISE EXCEPTION 'payment_already_processed'; END IF;
   IF p_approve THEN
+    IF length(trim(COALESCE(p_verified_ref,'')))<6 OR length(p_verified_ref)>140 THEN
+      RAISE EXCEPTION 'bank_reference_required';
+    END IF;
+    -- The UNIQUE partial index prevents using the SAME verified bank transaction to
+    -- extend different teacher accounts; the administrator enters it from bank records.
+    UPDATE public.subscription_payments
+       SET verified_transaction_ref=trim(p_verified_ref)
+    WHERE id=p_payment_id;
     INSERT INTO public.teacher_subscriptions(user_id,trial_started_at,trial_ends_at,paid_until)
     SELECT u.id,u.created_at,u.created_at+interval '1 month',
       GREATEST(now(),u.created_at+interval '1 month')+interval '1 month'
@@ -162,7 +174,7 @@ BEGIN
     (CASE WHEN p_approve THEN 'approved' ELSE 'rejected' END)::text,until_date;
 END;
 $$;
-REVOKE ALL ON FUNCTION public.waraqa_resolve_payment(uuid,boolean,text) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.waraqa_resolve_payment(uuid,boolean,text,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.waraqa_resolve_payment(uuid,boolean,text) TO service_role;
 
 COMMIT;
