@@ -33,7 +33,8 @@ export async function authenticate(request,{requireAccess=true}={}){
  return {user,serviceKey,url,isAnonymous:anonymous};
 }
 export async function claimQuota(auth,kind){
- const res=await fetch(auth.url+'/rest/v1/rpc/claim_ai_quota',{
+ const quotaRpc=process.env.SUBSCRIPTION_ENABLED==='true'?'claim_subscription_ai_quota':'claim_ai_quota';
+ const res=await fetch(auth.url+'/rest/v1/rpc/'+quotaRpc,{
   method:'POST',
   headers:{
    apikey:auth.serviceKey,
