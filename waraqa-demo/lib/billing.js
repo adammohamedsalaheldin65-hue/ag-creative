@@ -1,16 +1,39 @@
 // Server-side Supabase REST helpers. Never import into browser code.
+export const PAYMENT_PLANS=Object.freeze({
+  basic:{id:'basic',name:'الباقة الأساسية',priceEGP:50,unlimitedDailyAI:false},
+  premium:{id:'premium',name:'الباقة المتقدمة',priceEGP:200,unlimitedDailyAI:true}
+});
+const DEFAULT_INSTAPAY_LINK='https://ipn.eg/S/nehadsedemy/instapay/53H17I';
 export function billingSettings(){
-  const price=Number(process.env.SUBSCRIPTION_PRICE_EGP||0);
-  const destination=String(process.env.INSTAPAY_DESTINATION||'').trim().slice(0,160);
-  const accountName=String(process.env.INSTAPAY_ACCOUNT_NAME||'').trim().slice(0,140);
+  // These are public payment details supplied by the shop owner.
+  // The frontend NEVER sets its own payable amount.
+  const accountName=String(process.env.INSTAPAY_ACCOUNT_NAME||'نهاد').trim().slice(0,140);
+  const destination=String(process.env.INSTAPAY_DESTINATION||DEFAULT_INSTAPAY_LINK).trim().slice(0,220);
+  const validDestination=/^https:\/\/ipn\.eg\/S\/[a-zA-Z0-9_-]+\/instapay\/[a-zA-Z0-9_-]+\/?$/.test(destination);
+  const basicPrice=Number(process.env.SUBSCRIPTION_PRICE_EGP||50);
+  const premiumPrice=Number(process.env.PREMIUM_PRICE_EGP||200);
+  const isValid=n=>Number.isSafeInteger(n)&&n>0&&n<=100000;
+  const plans={
+    basic:{...PAYMENT_PLANS.basic,priceEGP:isValid(basicPrice)?basicPrice:null},
+    premium:{...PAYMENT_PLANS.premium,priceEGP:isValid(premiumPrice)?premiumPrice:null}
+  };
   return {
     enabled:process.env.SUBSCRIPTION_ENABLED==='true',
-    price:Number.isSafeInteger(price)&&price>0&&price<=100000?price:null,
-    destination,
+    price:plans.basic.priceEGP,
+    destination:validDestination?destination:'',
     accountName,
-    paymentReady:!!(destination&&accountName&&Number.isSafeInteger(price)&&price>0&&price<=100000)
+    plans,
+    paymentReady:!!(validDestination&&accountName&&isValid(basicPrice)&&isValid(premiumPrice))
   };
 }
+export function selectedPlan(settings,requestedPlan){
+ const id=String(requestedPlan||'');
+ const plan=settings?.plans?.[id];
+ if(!plan||!Number.isSafeInteger(plan.priceEGP)||plan.priceEGP<1)
+  throw Object.assign(new Error('اختر باقة اشتراك صحيحة'),{status:400});
+ return plan;
+}
+
 export function serviceConfig(){
   const url=String(process.env.SUPABASE_URL||'').replace(/\/+$/,'');
   const key=String(process.env.SUPABASE_SERVICE_ROLE_KEY||'');
@@ -39,7 +62,7 @@ export async function supabaseRest(path,{method='GET',body,headers={},expectJson
   try{return raw?JSON.parse(raw):null}catch{throw Object.assign(new Error('رد غير متوقع من قاعدة البيانات'),{status:503})}
 }
 export async function getSubscription(userId){
-  const rows=await supabaseRest('teacher_subscriptions?select=trial_started_at,trial_ends_at,paid_until&user_id=eq.'+encodeURIComponent(userId)+'&limit=1');
+  const rows=await supabaseRest('teacher_subscriptions?select=trial_started_at,trial_ends_at,paid_until,plan&user_id=eq.'+encodeURIComponent(userId)+'&limit=1');
   return Array.isArray(rows)?rows[0]||null:null;
 }
 export function subscriptionAccess(s,at=Date.now()){
