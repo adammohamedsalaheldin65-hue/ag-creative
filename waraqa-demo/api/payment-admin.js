@@ -16,9 +16,9 @@ export default {
    if(!billingSettings().enabled)return problem('الاشتراكات غير مفعلة',503);
    if(!validAdmin(request))return problem('غير مصرح بالدخول',401);
    if(request.method==='GET'){
-    const payments=await supabaseRest('subscription_payments?select=id,user_id,status,reference_note,ai_result,created_at,receipt_path,admin_note,resolved_at&order=created_at.desc&limit=80');
+    const payments=await supabaseRest('subscription_payments?select=id,user_id,plan,amount_egp,status,reference_note,ai_result,created_at,receipt_path,admin_note,resolved_at&order=created_at.desc&limit=80');
     const mapped=await Promise.all((payments||[]).map(async p=>({
-      id:p.id,userId:p.user_id,status:p.status,referenceNote:p.reference_note,
+      id:p.id,userId:p.user_id,plan:p.plan,amountEGP:p.amount_egp,status:p.status,referenceNote:p.reference_note,
       ai:p.ai_result,createdAt:p.created_at,resolvedAt:p.resolved_at,adminNote:p.admin_note,
       proofUrl:p.status==='pending'?await signedProof(p.receipt_path):null
     })));
