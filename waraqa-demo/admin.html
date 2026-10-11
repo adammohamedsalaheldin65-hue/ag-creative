@@ -72,6 +72,7 @@ function render(){
  '\nملحوظة فنية: '+esc(ai.note||'لا يوجد')+'</div>'+
  (pending&&p.proofUrl?'<a href="'+esc(p.proofUrl)+'" target="_blank" rel="noopener noreferrer"><img class="proof" src="'+esc(p.proofUrl)+'" alt="صورة تحويل إنستا باي"/></a>':pending?'<p>تعذرت معاينة الصورة. راجع ملفات الدفع في Supabase Storage.</p>':'')+
  (pending?'<div><label>ملاحظة الإدارة (تظهر للمعلم عند الرفض)</label><textarea id="note-'+esc(p.id)+'" rows="2" maxlength="400" placeholder="سبب الرفض أو رقم التحويل المطابق"></textarea>'+
+ '<div style="margin:10px 0"><label>رقم العملية الفعلي من كشف الحساب أو تطبيق إنستا باي (إجباري للموافقة)</label><input id="bank-ref-'+esc(p.id)+'" minlength="6" maxlength="140" placeholder="الرقم المرجعي المؤكد من حساب المستفيد" /></div>'+
  '<label class="row" style="margin:12px 0"><input type="checkbox" id="bank-'+esc(p.id)+'"/><b>تأكدت بنفسي من وصول المبلغ الصحيح في كشف الحساب/إنستا باي، وليس بالصورة فقط</b></label>'+
  '<div class="row"><button data-id="'+esc(p.id)+'" data-decision="approve">تأكيد الدفع وتفعيل شهر</button><button class="danger" data-id="'+esc(p.id)+'" data-decision="reject">رفض الإيصال</button></div></div>':'<p class="muted">حُسم الطلب '+esc(date(p.resolvedAt))+'</p>')+
  '</section>';
@@ -79,12 +80,14 @@ function render(){
 }
 async function resolve(id,decision){
  const confirmedInBank=$('bank-'+id)?.checked===true;
+ const verifiedBankReference=($('bank-ref-'+id)?.value||'').trim();
+ if(decision==='approve'&&verifiedBankReference.length<6){$('result').textContent='أدخل رقم العملية الصحيح من حساب المستفيد قبل التفعيل';return}
  if(decision==='approve'&&!confirmedInBank){$('result').textContent='لازم تؤكد وصول التحويل في الحساب الحقيقي قبل الموافقة';return}
  if(!confirm(decision==='approve'?'هل راجعت كشف الحساب وتأكدت من وصول المبلغ وعدم تكراره، وتريد تفعيل شهر لهذا الحساب؟':'هل أنت متأكد من رفض الطلب؟'))return;
  try{
   const note=$('note-'+id)?.value||'';
   $('result').textContent='جارٍ تسجيل القرار...';
-  await api('POST',{paymentId:id,decision,confirmedInBank,adminNote:note});
+  await api('POST',{paymentId:id,decision,confirmedInBank,verifiedBankReference,adminNote:note});
   await load();
  }catch(e){$('result').textContent=e.message}
 }
