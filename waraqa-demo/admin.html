@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="robots" content="noindex,nofollow"/>
+<title>ورقة — مراجعة اشتراكات إنستا باي</title>
+<style>
+*{box-sizing:border-box}body{font-family:system-ui,Tahoma,Arial,sans-serif;margin:0;background:#f5f8fc;color:#1f354e;line-height:1.7}
+header{background:#133d54;color:#fff;padding:24px max(16px,calc((100vw - 1100px)/2))}
+main{max-width:1100px;margin:24px auto;padding:0 16px}
+.panel{background:white;border:1px solid #dce6ee;border-radius:16px;padding:22px;margin:16px 0;box-shadow:0 6px 18px #264c6c0b}
+h1,h2,h3{margin:0 0 12px}h1{font-size:25px}h2{font-size:20px}
+input,textarea{font:inherit;width:100%;border:1px solid #bbc9d6;border-radius:10px;padding:10px 12px}
+input[type=checkbox]{width:auto}
+button{cursor:pointer;background:#116f69;border:0;border-radius:10px;padding:11px 16px;color:#fff;font:inherit;font-weight:700}
+button:disabled{opacity:.55;cursor:not-allowed}button.secondary{background:#e5ebf0;color:#1f354e}button.danger{background:#af354e}
+.row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.row>*{flex:0 1 auto}
+.muted{color:#637589}.warn{color:#9a4d27;background:#fff5e4;padding:12px;border-radius:9px}
+.proof{display:block;max-width:100%;max-height:430px;margin:12px 0;border:1px solid #e5edf5;border-radius:12px;object-fit:contain}
+.facts{background:#f4f8fb;border-radius:10px;padding:11px;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+footer{padding:20px;color:#556;text-align:center}#result{margin:12px 0;color:#35546c;font-weight:700}
+</style>
+</head>
+<body>
+<header><h1>▤ ورقة | لوحة مراجعة الاشتراكات</h1><p>مخصصة للإدارة فقط — افحص التحويل البنكي الحقيقي، وليس الصورة وحدها.</p></header>
+<main>
+<section class="panel" id="access">
+<h2>🔐 دخول المسؤول</h2>
+<p>أدخل رمز الإدارة الذي أنشأته في إعدادات Vercel باسم <code>SUBSCRIPTION_ADMIN_TOKEN</code>. الرمز لا يُحفظ في المتصفح ولا يُرسل إلا إلى خادم ورقة عبر HTTPS.</p>
+<div class="row"><input id="token" type="password" autocomplete="off" placeholder="رمز إدارة الاشتراكات" style="flex:1;min-width:220px"/><button id="load">تحميل الطلبات</button><button id="clear" class="secondary">مسح الرمز</button></div>
+<p class="warn"><b>تنبيه:</b> الفحص الآلي للصورة استرشادي فقط. لازم تفتح حساب المستفيد وتتأكد بنفسك من وصول نفس المبلغ وبيانات العملية، وإن التحويل مش مكرر، قبل الموافقة.</p>
+<div id="result" role="status"></div>
+</section>
+<section id="requests"></section>
+</main>
+<footer>معلومات التحويلات خاصة وسرّية. لا تشارك رابط صورة الإيصال أو رمز الإدارة.</footer>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&quot;'}[c]));
+let adminKey='';let payments=[];
+const date=v=>v?new Date(v).toLocaleString('ar-EG'):'—';
+async function api(method='GET',body){
+ if(!adminKey)throw new Error('أدخل رمز الإدارة أولًا');
+ const r=await fetch('/api/payment-admin',{method,headers:{'x-admin-key':adminKey,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})});
+ const j=await r.json().catch(()=>({}));
+ if(!r.ok)throw new Error(j.error||'حدث خطأ في الخادم');
+ return j;
+}
+async function load(){
+ try{
+  adminKey=$('token').value.trim();
+  if(!adminKey)throw new Error('أدخل رمز الإدارة');
+  $('result').textContent='جارٍ التحميل...';
+  const out=await api();
+  payments=out.payments||[];
+  $('result').textContent='تم التحميل • '+payments.filter(x=>x.status==='pending').length+' إيصال بانتظار المراجعة';
+  render();
+ }catch(e){$('result').textContent=e.message;$('requests').textContent=''}
+}
+function render(){
+ $('requests').innerHTML=payments.map(p=>{
+ const ai=p.ai||{},pending=p.status==='pending';
+ return '<section class="panel"><div class="row"><h3>'+(pending?'⏳ قيد المراجعة':p.status==='approved'?'✅ تم التأكيد':'❌ مرفوض')+'</h3>'+
+ '<small class="muted">'+esc(date(p.createdAt))+'</small></div>'+
+ '<div class="facts">رقم الطلب: '+esc(p.id)+'\nمعرّف المعلم: '+esc(p.userId)+'\nمرجع المعلم: '+esc(p.referenceNote||'غير مذكور')+
+ '\nإشارة الفحص الآلي: '+(ai.appearsSuccessful?'الصورة تبدو كإشعار نجاح (غير مؤكد)':'غير مؤكد')+
+ '\nمبلغ ظاهر بالصورة: '+esc(ai.visibleAmount??'غير مقروء')+
+ '\nمستفيد ظاهر بالصورة: '+esc(ai.visibleRecipient||'غير واضح')+
+ '\nرقم عملية مستخرج: '+esc(ai.transferReference||'غير واضح')+
+ '\nملحوظة فنية: '+esc(ai.note||'لا يوجد')+'</div>'+
+ (pending&&p.proofUrl?'<a href="'+esc(p.proofUrl)+'" target="_blank" rel="noopener noreferrer"><img class="proof" src="'+esc(p.proofUrl)+'" alt="صورة تحويل إنستا باي"/></a>':pending?'<p>تعذرت معاينة الصورة. راجع ملفات الدفع في Supabase Storage.</p>':'')+
+ (pending?'<div><label>ملاحظة الإدارة (تظهر للمعلم عند الرفض)</label><textarea id="note-'+esc(p.id)+'" rows="2" maxlength="400" placeholder="سبب الرفض أو رقم التحويل المطابق"></textarea>'+
+ '<label class="row" style="margin:12px 0"><input type="checkbox" id="bank-'+esc(p.id)+'"/><b>تأكدت بنفسي من وصول المبلغ الصحيح في كشف الحساب/إنستا باي، وليس بالصورة فقط</b></label>'+
+ '<div class="row"><button data-id="'+esc(p.id)+'" data-decision="approve">تأكيد الدفع وتفعيل شهر</button><button class="danger" data-id="'+esc(p.id)+'" data-decision="reject">رفض الإيصال</button></div></div>':'<p class="muted">حُسم الطلب '+esc(date(p.resolvedAt))+'</p>')+
+ '</section>';
+ }).join('')||'<div class="panel"><p>لا توجد طلبات دفع بعد.</p></div>';
+}
+async function resolve(id,decision){
+ const confirmedInBank=$('bank-'+id)?.checked===true;
+ if(decision==='approve'&&!confirmedInBank){$('result').textContent='لازم تؤكد وصول التحويل في الحساب الحقيقي قبل الموافقة';return}
+ if(!confirm(decision==='approve'?'هل راجعت كشف الحساب وتأكدت من وصول المبلغ وعدم تكراره، وتريد تفعيل شهر لهذا الحساب؟':'هل أنت متأكد من رفض الطلب؟'))return;
+ try{
+  const note=$('note-'+id)?.value||'';
+  $('result').textContent='جارٍ تسجيل القرار...';
+  await api('POST',{paymentId:id,decision,confirmedInBank,adminNote:note});
+  await load();
+ }catch(e){$('result').textContent=e.message}
+}
+$('load').addEventListener('click',load);
+$('clear').addEventListener('click',()=>{adminKey='';$('token').value='';payments=[];$('requests').innerHTML='';$('result').textContent='تم مسح الرمز'});
+$('requests').addEventListener('click',e=>{const btn=e.target.closest('button[data-id]');if(btn)resolve(btn.dataset.id,btn.dataset.decision)});
+</script>
+</body>
+</html>
