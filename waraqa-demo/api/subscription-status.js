@@ -25,7 +25,8 @@ export default {
      payments:Array.isArray(receipts)?receipts:[],
      paymentReady:billingSettings().paymentReady,
      priceEGP:billingSettings().price,
-     destination:billingSettings().destination
+     destination:billingSettings().destination,
+     accountName:billingSettings().accountName
    });
   }catch(e){return fail(e)}
  }
