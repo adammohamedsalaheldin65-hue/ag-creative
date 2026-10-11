@@ -1,4 +1,5 @@
 import {billingSettings} from '../lib/billing.js';
+import {studentPortalEnabled} from '../lib/auth.js';
 export default {
  fetch(request){
   const supabaseUrl=process.env.SUPABASE_URL||'';
@@ -7,6 +8,6 @@ export default {
   const aiConfigured=Boolean(authConfigured&&process.env.SUPABASE_SERVICE_ROLE_KEY&&process.env.GEMINI_API_KEY);
   const subscription=billingSettings();
   const anonymousAIEnabled=Boolean(!subscription.enabled&&aiConfigured&&process.env.ALLOW_ANONYMOUS_AI==='true');
-  return Response.json({authConfigured,aiConfigured,anonymousAIEnabled,teacherPays:subscription.enabled,subscriptionEnabled:subscription.enabled,subscriptionPriceEGP:subscription.price,subscriptionPlans:subscription.plans,subscriptionPaymentReady:subscription.paymentReady,instaPayDestination:subscription.destination,instaPayAccountName:subscription.accountName,supabaseUrl:authConfigured?supabaseUrl:'',supabaseKey:authConfigured?supabaseKey:''},{headers:{'Cache-Control':'no-store'}});
+  return Response.json({authConfigured,aiConfigured,anonymousAIEnabled,teacherPays:subscription.enabled,subscriptionEnabled:subscription.enabled,studentPortalEnabled:studentPortalEnabled(),studentStudyLimitPerDay:2,studentGlobalDailyLimit:25,subscriptionPriceEGP:subscription.price,subscriptionPlans:subscription.plans,subscriptionPaymentReady:subscription.paymentReady,instaPayDestination:subscription.destination,instaPayAccountName:subscription.accountName,supabaseUrl:authConfigured?supabaseUrl:'',supabaseKey:authConfigured?supabaseKey:''},{headers:{'Cache-Control':'no-store'}});
  }
 };
