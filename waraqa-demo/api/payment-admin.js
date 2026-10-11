@@ -33,11 +33,15 @@ export default {
     if(!['approve','reject'].includes(decision))return problem('اختار موافقة أو رفض',400);
     if(decision==='approve'&&body.confirmedInBank!==true)
       return problem('لا يمكن الموافقة قبل التأكد من وصول التحويل في تطبيق إنستا باي/كشف الحساب الحقيقي',400);
+    const verifiedRef=String(body?.verifiedBankReference||'').trim();
+    if(decision==='approve'&&(verifiedRef.length<6||verifiedRef.length>140))
+      return problem('أدخل رقم المعاملة الفعلي من سجل الحساب لاستبعاد إعادة استخدام نفس التحويل',400);
     const out=await supabaseRest('rpc/waraqa_resolve_payment',{
       method:'POST',body:{
         p_payment_id:id,
         p_approve:decision==='approve',
-        p_admin_note:String(body.adminNote||'').trim().slice(0,400)
+        p_admin_note:String(body.adminNote||'').trim().slice(0,400),
+        p_verified_ref:decision==='approve'?verifiedRef:''
       }
     });
     return result({ok:true,decision,paidUntil:Array.isArray(out)?out[0]?.paid_through:null});
