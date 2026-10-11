@@ -61,7 +61,8 @@ async function load(){
 }
 function render(){
  $('requests').innerHTML=payments.map(p=>{
- const ai=p.ai||{},pending=p.status==='pending';
+ const ai=p.ai||{},pending=p.status==='pending',v=ai.validation||{};
+ const displayCheck=(value)=>value===true?'✅ مطابق':value===false?'❌ غير مطابق':'⚠️ غير واضح';
  return '<section class="panel"><div class="row"><h3>'+(pending?'⏳ قيد المراجعة':p.status==='approved'?'✅ تم التأكيد':'❌ مرفوض')+'</h3>'+
  '<small class="muted">'+esc(date(p.createdAt))+'</small></div>'+
  '<div class="facts">رقم الطلب: '+esc(p.id)+'\nمعرّف المعلم: '+esc(p.userId)+'\nمرجع المعلم: '+esc(p.referenceNote||'غير مذكور')+
@@ -69,6 +70,12 @@ function render(){
  '\nمبلغ ظاهر بالصورة: '+esc(ai.visibleAmount??'غير مقروء')+
  '\nمستفيد ظاهر بالصورة: '+esc(ai.visibleRecipient||'غير واضح')+
  '\nرقم عملية مستخرج: '+esc(ai.transferReference||'غير واضح')+
+ '\nاسم المستفيد المتوقع: '+esc(v.expectedRecipient||'لم يحدد بعد')+
+ '\nقيمة الاشتراك المتوقعة: '+esc(v.expectedAmount??'غير محدد')+' جنيه'+
+ '\nتطابق اسم المستفيد: '+displayCheck(v.recipientMatch)+
+ '\nتطابق المبلغ: '+displayCheck(v.amountMatch)+
+ '\nحالة الصورة: '+(v.imageSaysSuccess?'✅ ظاهرة كناجحة':'⚠️ غير مؤكدة')+
+ '\nالتقييم: '+(v.allChecksPass?'✅ بيانات الصورة متطابقة مبدئيًا فقط':'⚠️ يوجد اختلاف أو نقص يحتاج مراجعة')+
  '\nملحوظة فنية: '+esc(ai.note||'لا يوجد')+'</div>'+
  (pending&&p.proofUrl?'<a href="'+esc(p.proofUrl)+'" target="_blank" rel="noopener noreferrer"><img class="proof" src="'+esc(p.proofUrl)+'" alt="صورة تحويل إنستا باي"/></a>':pending?'<p>تعذرت معاينة الصورة. راجع ملفات الدفع في Supabase Storage.</p>':'')+
  (pending?'<div><label>ملاحظة الإدارة (تظهر للمعلم عند الرفض)</label><textarea id="note-'+esc(p.id)+'" rows="2" maxlength="400" placeholder="سبب الرفض أو رقم التحويل المطابق"></textarea>'+
