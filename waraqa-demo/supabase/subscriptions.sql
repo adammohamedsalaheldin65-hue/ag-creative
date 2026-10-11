@@ -188,12 +188,13 @@ $$;
 REVOKE ALL ON FUNCTION public.waraqa_resolve_payment(uuid,boolean,text,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.waraqa_resolve_payment(uuid,boolean,text,text) TO service_role;
 
+-- This is a DISTINCT RPC. The legacy claim_ai_quota remains intact until subscriptions are enabled on Vercel.
 -- Paid plans have distinct daily AI policies.
 -- Trial/basic: 3 AI jobs per UTC day per account.
 -- Premium: NO per-account DAILY quota, but 8/minute burst protection
 -- and 200/minute site-wide protection to control abuse and provider costs.
 -- Gemini provider/model account limitations can still apply.
-CREATE OR REPLACE FUNCTION public.claim_ai_quota(p_user uuid,p_kind text)
+CREATE OR REPLACE FUNCTION public.claim_subscription_ai_quota(p_user uuid,p_kind text)
 RETURNS TABLE(allowed boolean,reason text,remaining integer)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
 AS $
@@ -241,8 +242,8 @@ BEGIN
                      (CASE WHEN premium_active THEN -1 ELSE 2-daily_count END);
 END;
 $;
-REVOKE ALL ON FUNCTION public.claim_ai_quota(uuid,text) FROM PUBLIC,anon,authenticated;
-GRANT EXECUTE ON FUNCTION public.claim_ai_quota(uuid,text) TO service_role;
+REVOKE ALL ON FUNCTION public.claim_subscription_ai_quota(uuid,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_subscription_ai_quota(uuid,text) TO service_role;
 
 COMMIT;
 
