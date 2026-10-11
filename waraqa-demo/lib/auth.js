@@ -1,3 +1,5 @@
+import {getSubscription,subscriptionAccess} from './billing.js';
+
 function secrets(){
  const url=String(process.env.SUPABASE_URL||'').replace(/\/+$/,'');
  const publicKey=process.env.SUPABASE_PUBLISHABLE_KEY||process.env.SUPABASE_ANON_KEY||'';
@@ -7,7 +9,7 @@ function secrets(){
  }
  return {url,publicKey,serviceKey};
 }
-export async function authenticate(request){
+export async function authenticate(request,{requireAccess=true}={}){
  const {url,publicKey,serviceKey}=secrets();
  const bearer=String(request.headers.get('authorization')||'');
  if(!/^Bearer [A-Za-z0-9._~+/-]+=*$/.test(bearer))throw Object.assign(new Error('سجل دخولك أولًا'),{status:401});
@@ -18,6 +20,14 @@ export async function authenticate(request){
  const user=await res.json();
  if(!user?.id)throw Object.assign(new Error('تعذر التحقق من الجلسة'),{status:401});
  const anonymous=user.is_anonymous===true;
+ if(process.env.SUBSCRIPTION_ENABLED==='true'){
+   if(anonymous)throw Object.assign(new Error('أنشئ حساب معلم ببريد إلكتروني للاستفادة من الشهر المجاني'),{status:401});
+   if(requireAccess){
+     const subscription=await getSubscription(user.id);
+     if(!subscriptionAccess(subscription))
+       throw Object.assign(new Error('انتهى اشتراكك. ارفع إيصال التحويل وانتظر تأكيد الدفع لتجديد الشهر.'),{status:402});
+   }
+ }
  if(anonymous && process.env.ALLOW_ANONYMOUS_AI!=='true')
    throw Object.assign(new Error('الذكاء الاصطناعي للضيوف غير مفعّل على الخادم بعد.'),{status:403});
  return {user,serviceKey,url,isAnonymous:anonymous};
