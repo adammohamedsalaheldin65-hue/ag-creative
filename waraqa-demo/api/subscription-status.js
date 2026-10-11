@@ -18,6 +18,7 @@ export default {
       :null;
    return result({
      access:subscriptionAccess(subscription),
+     plan:subscription?.plan||'trial',
      trialStartedAt:subscription?.trial_started_at||null,
      trialEndsAt:subscription?.trial_ends_at||null,
      paidUntil:subscription?.paid_until||null,
@@ -25,6 +26,7 @@ export default {
      payments:Array.isArray(receipts)?receipts:[],
      paymentReady:billingSettings().paymentReady,
      priceEGP:billingSettings().price,
+     plans:billingSettings().plans,
      destination:billingSettings().destination,
      accountName:billingSettings().accountName
    });
