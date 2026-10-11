@@ -48,7 +48,13 @@ export async function claimQuota(auth,kind){
  const data=await res.json();
  const info=Array.isArray(data)?data[0]:data;
  if(info?.allowed!==true){
-  const why=info?.reason==='global'?'اكتملت حصة المنصة المجانية اليوم. جرّب غدًا.':'وصلت للحد المجاني لليوم. حاول غدًا.';
+  const why={
+    daily:'اكتملت حصتك اليومية في الباقة الأساسية. الباقة المتقدمة ليس لها حد يومي على مستوى الحساب.',
+    burst:'طلبات كثيرة في دقيقة واحدة؛ انتظر دقيقة قبل المحاولة مرة أخرى.',
+    global_burst:'يوجد ضغط مؤقت على الذكاء الاصطناعي؛ حاول بعد دقيقة.',
+    expired:'انتهى اشتراكك الشهري، جدد الاشتراك.',
+    global:'اكتملت حصة المنصة القديمة مؤقتًا. حاول لاحقًا.'
+  }[info?.reason]||'تعذر حجز طلب التوليد الآن؛ حاول لاحقًا.';
   throw Object.assign(new Error(why),{status:429});
  }
  return info;
