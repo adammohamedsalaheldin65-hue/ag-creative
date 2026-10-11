@@ -217,7 +217,7 @@ BEGIN
  IF current_plan IS NULL OR GREATEST(current_trial,COALESCE(current_paid,'-infinity'::timestamptz))<=now() THEN
     RETURN QUERY SELECT false,'expired'::text,0;RETURN;
  END IF;
- premium_active := current_plan='premium' AND current_paid>now();
+ premium_active := current_plan='premium' AND COALESCE(current_paid>now(),false);
  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('waraqa-plan-ai-'||minute_start::text,0));
  SELECT count(*) INTO short_burst_count
    FROM public.ai_requests WHERE user_id=p_user AND created_at>=minute_start;
