@@ -62,12 +62,13 @@ function subscriptionPaywall(){
  const hasPrice=!!st.paymentReady;
  const price=st.priceEGP;
  const destination=st.destination||'';
+ const accountName=st.accountName||'';
  return '<div class="subscription-page"><section class="subscription-card">'+logo()+
  '<h1>'+(subscriptionError?'مشكلة مؤقتة في حسابك':isSetupMissing?'حسابك بحاجة لإعداد الاشتراك':renewalOpen&&localSubscriptionActive()?'تجديد الاشتراك مبكرًا':'انتهت الفترة المجانية أو اشتراكك')+'</h1>'+
  '<p class="subheading">مرحبًا '+E(state.user?.name||'يا معلم')+'. '+(subscriptionError?E(subscriptionError):isSetupMissing?'الاشتراكات لم تُجهز على قاعدة البيانات بعد. تواصل مع الإدارة.':'امتحاناتك محفوظة، وستعود إليها بعد تأكيد الاشتراك.')+'</p>'+
  (st.trialEndsAt?'<div class="subscription-line">🎁 بداية التجربة: <b>'+E(localDate(st.trialStartedAt))+'</b></div><div class="subscription-line">🗓️ نهاية التجربة المجانية: <b>'+E(localDate(st.trialEndsAt))+'</b></div>':'')+
  (st.paidUntil?'<div class="subscription-line">✅ اشتراك مدفوع حتى: <b>'+E(localDate(st.paidUntil))+'</b></div>':'')+
- (hasPrice?'<div class="subscription-price">'+E(price)+' جنيه <small> / شهر</small></div><p class="mini-note">حوّل قيمة الاشتراك إلى إنستا باي:</p><div class="subscription-destination" dir="ltr">'+E(destination)+'</div>':
+ (hasPrice?'<div class="subscription-price">'+E(price)+' جنيه <small> / شهر</small></div><p class="mini-note">اسم المستفيد: <strong>'+E(accountName)+'</strong></p><p class="mini-note">حوّل قيمة الاشتراك إلى عنوان إنستا باي:</p><div class="subscription-destination" dir="ltr">'+E(destination)+'</div><p class="mini-note spaced">اتأكد بنفسك إن الاسم والمبلغ ظاهرين صح في تطبيق إنستا باي قبل تأكيد التحويل.</p>':
    '<div class="notice">لم تضف الإدارة سعر الاشتراك أو عنوان إنستا باي بعد، لذلك استقبال التحويلات متوقف مؤقتًا.</div>')+
  (pending?'<div class="notice blue spaced">⏳ وصل إيصالك وهو الآن قيد المراجعة. فحص الصورة بالذكاء الاصطناعي لا يعني وصول المال؛ سيتم تفعيل الشهر بعد مطابقة التحويل الحقيقي.</div>':
    hasPrice&&!isSetupMissing&&!subscriptionError?'<form id="payment-form" class="spaced">'+
