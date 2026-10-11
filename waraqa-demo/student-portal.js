@@ -198,7 +198,12 @@ async function studentSignIn(event){
   if(!response.data.user)throw new Error('تعذر الدخول للحساب. تحقق من البريد.');
   await studentResolveAccount(response.data.user);
  }catch(error){studentAlert('⚠️ '+(error.message||'تعذر تسجيل الدخول'))}
- finally{st.busy=false;studentRender()}
+ finally{
+  st.busy=false;studentRender();
+  // The auth form was busy during first login, so open a shared exam code now.
+  if(studentSignedIn()&&st.view==='quiz'&&st.code&&!st.quiz)
+   await studentLoadQuiz();
+ }
 }
 async function studentLogout(){
  await st.client?.auth.signOut();
