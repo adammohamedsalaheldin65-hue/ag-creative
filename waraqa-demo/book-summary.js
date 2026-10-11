@@ -16,6 +16,7 @@ let bookStop=false;
 let bookStatus='';
 let bookDataPromise=null;
 let bookPdfPromise=null;
+let bookLastUserId='';
 const bookEsc=val=>E(String(val??''));
 const bookUserId=()=>String(state.user?.ownerId||'');
 const bookDone=p=>!!p?.chunks?.length&&p.chunks.every(c=>Array.isArray(c.summary?.sections)&&c.summary.sections.length);
@@ -158,6 +159,12 @@ function bookSyncForm(){
   }
 }
 function bookSummaryHTML(){
+  const activeUser=bookUserId();
+  if(bookLastUserId!==activeUser){
+    bookLastUserId=activeUser;
+    bookCurrent=null;bookSaved=[];bookListed=false;bookStop=true;bookStatus='';
+    bookForm={title:'',teacher:'',school:'',grade:''};
+  }
   bookEnsureList();
   const user=state.user||{};
   const p=bookCurrent;
@@ -390,7 +397,7 @@ act=async function(action,button){
   if(action==='book-open')return bookOpen(button.dataset.id);
   if(action==='book-remove')return bookRemove(button.dataset.id);
   if(action==='book-print')return bookPrint();
-  if(action==='go'&&bookWorking&&state.page==='book')bookStop=true;
+  if((action==='go'&&state.page==='book')||action==='logout')bookStop=true;
   return bookPreviousAct(action,button);
 };
 document.addEventListener('change',event=>{
