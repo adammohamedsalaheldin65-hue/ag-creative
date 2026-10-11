@@ -127,7 +127,7 @@ GRANT EXECUTE ON FUNCTION public.claim_student_ai_quota(uuid) TO service_role;
 CREATE TABLE IF NOT EXISTS public.waraqa_quizzes (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  teacher_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
- source_exam_id uuid NOT NULL REFERENCES public.exams(id) ON DELETE CASCADE,
+ source_exam_id uuid REFERENCES public.exams(id) ON DELETE SET NULL,
  access_code text NOT NULL UNIQUE CHECK (access_code ~ '^[A-F0-9]{12}$'),
  title text NOT NULL CHECK (char_length(title) BETWEEN 1 AND 160),
  subject text NOT NULL DEFAULT '',
