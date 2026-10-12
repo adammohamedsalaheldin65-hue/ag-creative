@@ -1,6 +1,6 @@
 // Netlify Functions v2: one safe routing adapter for Waraqa's existing
 // Fetch-style API. This keeps /api/* URLs unchanged for both portals.
-import config from '../../api/config.js';
+import configEndpoint from '../../api/config.js';
 import generateExam from '../../api/generate-exam.js';
 import generateStoryboard from '../../api/generate-storyboard.js';
 import paymentAdmin from '../../api/payment-admin.js';
@@ -12,7 +12,7 @@ import summarizeBook from '../../api/summarize-book.js';
 import teacherQuizzes from '../../api/teacher-quizzes.js';
 
 const handlers=Object.freeze({
- 'config':config,
+ 'config':configEndpoint,
  'generate-exam':generateExam,
  'generate-storyboard':generateStoryboard,
  'payment-admin':paymentAdmin,
