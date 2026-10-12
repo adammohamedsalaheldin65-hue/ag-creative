@@ -4,9 +4,12 @@ export function result(data,status=200) {
   return Response.json(data,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 }
 export function problem(error,status=400){return result({error},status)}
-export function parseImages(images){
+export function parseImages(images,{maxImages=6}={}){
   if(!Array.isArray(images))return [];
-  if(images.length>6)throw Object.assign(new Error('الحد الأقصى 6 صور لكل درس'),{status:413});
+  // Existing teacher tools still max out at six images; only the guarded
+  // student photo tutor is allowed to explicitly request up to ten.
+  const limit=maxImages===10?10:6;
+  if(images.length>limit)throw Object.assign(new Error('الحد الأقصى '+limit+' صور للطلب'),{status:413});
   let sum=0;
   return images.map((image,i)=>{
     const uri=String(image?.data||'');
@@ -20,7 +23,7 @@ export function parseImages(images){
 export async function geminiJSON(prompt,images=[],settings={}){
   if(!process.env.GEMINI_API_KEY)throw Object.assign(new Error('الذكاء الاصطناعي غير مفعل بعد. يرجى التواصل مع إدارة الموقع.'),{status:503});
   const body={
-    contents:[{role:'user',parts:[{text:prompt},...parseImages(images)]}],
+    contents:[{role:'user',parts:[{text:prompt},...parseImages(images,{maxImages:settings.maxImages})]}],
     generationConfig:{responseMimeType:'application/json',maxOutputTokens:Number.isSafeInteger(settings.maxOutputTokens)&&settings.maxOutputTokens>=512&&settings.maxOutputTokens<=16384?settings.maxOutputTokens:16384}
   };
   let reply;
