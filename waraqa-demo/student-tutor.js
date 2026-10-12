@@ -31,7 +31,7 @@ function tutorSteps(){
 function tutorImageHTML(){
  if(!tutor.images.length)return '<p class="helper">لسه مرفعتش صور. تقدر تصور بالكاميرا أو تختار صور من المعرض.</p>';
  return '<div class="tutor-thumbs">'+tutor.images.map((im,i)=>
-  '<div class="tutor-thumb"><img alt="الصفحة '+(i+1)+'" src="'+im.data+'">'+
+  '<div class="tutor-thumb"><img loading="lazy" alt="الصفحة '+(i+1)+'" src="'+im.data+'">'+
   '<button type="button" class="btn outline" data-action="tutor-remove-photo" data-index="'+i+'">✕ حذف</button></div>'
  ).join('')+'</div>';
 }
@@ -52,7 +52,7 @@ function tutorViewHTML(){
   '<textarea id="tutor-source" class="field" maxlength="6000" placeholder="لو مش هتصور، اكتب هنا 90 حرفًا على الأقل...">'+studentEscape(tutor.sourceText)+'</textarea></div>'+
   '<div class="controls"><button class="btn" type="submit" '+(tutor.busy?'disabled':'')+'>'+
   (tutor.busy?'⏳ جارٍ قراءة الصور وإعداد الدرس...':'✨ ابدأ الشرح والألعاب والامتحان')+'</button>'+
-  '<span class="helper">بحد أقصى 4 صور للدرس. صور واضحة في إضاءة كويسة.</span></div></form></section>';
+  '<span class="helper">حتى 10 صور للدرس. الأفضل صور صفحات واضحة مع إضاءة قوية؛ هيتم ضغط الصور تلقائيًا.</span></div></form></section>';
  if(!tutor.lesson)return out;
  const l=tutor.lesson;
  out+='<section class="card"><h2>📖 '+studentEscape(l.title)+'</h2>'+
@@ -153,46 +153,80 @@ function tutorToast(text){
 
 async function tutorAddPhotos(files){
  if(tutor.busy||!files?.length)return;
- if(tutor.images.length+files.length>4)return tutorToast('⚠️ اختار 4 صور بحد أقصى للدرس الواحد.');
+ if(tutor.images.length+files.length>10)
+  return tutorToast('⚠️ الحد الأقصى 10 صور للدرس الواحد. احذف صورة قبل إضافة غيرها.');
  tutorSaveFields();
- tutorToast('⏳ بنجهز صور الصفحات بحجم مناسب للموبايل...');
+ const valid=[];
  for(const file of files){
-  if(!/^image\/(?:jpeg|png|webp)$/.test(file.type)){
-   tutorToast('⚠️ صورة غير مدعومة: استخدم JPEG أو PNG أو WEBP.');continue;
-  }
-  if(file.size>12*1024*1024){tutorToast('⚠️ الصورة كبيرة جدًا.');continue}
-  try{
-   const data=await tutorCompressImage(file);
-   tutor.images.push({data,name:String(file.name||'صفحة').slice(0,100)});
-  }catch(error){tutorToast('⚠️ ماعرفناش نقرأ الصورة دي. جرّب صورة تانية.')}
+  if(!/^image\/(?:jpeg|png|webp)$/.test(file.type))
+   return tutorToast('⚠️ استخدم JPEG أو PNG أو WEBP فقط.');
+  if(file.size>12*1024*1024)
+   return tutorToast('⚠️ الصورة أكبر من 12 ميجابايت. اختار حجمًا أصغر.');
+  valid.push({file,name:String(file.name||'صفحة').slice(0,100)});
  }
- const bytes=tutor.images.reduce((sum,im)=>sum+im.data.length,0);
- if(bytes>2_950_000){
-  tutor.images=[];
-  tutorToast('⚠️ حجم الصور أكبر من المسموح بعد الضغط. اختر صورًا أقل.');
- }else tutorToast('✅ اتجهزت '+tutor.images.length+' صورة. اضغط ابدأ الشرح لما تكون جاهز.');
+ if(!valid.length)return;
+ // Keep a File reference in local JS only. The request sends *only* the
+ // compressed data URLs, never raw photos or filenames.
+ const pending=[...tutor.images.map(im=>({file:im.file,name:im.name})),...valid];
+ tutor.busy=true;
  studentRender();
+ tutorToast('⏳ بنجهز '+pending.length+' صور. جودة كل صورة هتتظبط حسب العدد...');
+ try{
+  // Recompress earlier photos when more are added. This keeps the entire
+  // request below the API's fixed ~3.25M character image budget.
+  const charBudget=Math.floor(3_200_000/pending.length);
+  const ready=[];
+  for(const item of pending){
+   if(!item.file)throw new Error('الصورة السابقة لم تعد متاحة. أعد اختيار صور الكتاب.');
+   const data=await tutorCompressImage(item.file,charBudget);
+   ready.push({data,file:item.file,name:item.name});
+  }
+  if(ready.reduce((sum,im)=>sum+im.data.length,0)>3_250_000)
+   throw new Error('الحجم الإجمالي كبير؛ استخدم صورًا أقل.');
+  tutor.images=ready;
+  tutorToast('✅ جاهز: '+tutor.images.length+' من 10 صور. تقدر تضيف كمان أو تبدأ الشرح.');
+ }catch(error){
+  tutorToast('⚠️ '+(error?.message||'تعذر تجهيز بعض الصور. جرّب عددًا أقل.'));
+ }finally{
+  tutor.busy=false;
+  studentRender();
+ }
 }
 
-function tutorCompressImage(file){
+function tutorCompressImage(file,maxCharacters){
  return new Promise((resolve,reject)=>{
   const img=new Image();
   const blobURL=URL.createObjectURL(file);
   img.onload=()=>{
    try{
-    const maxSide=1250,ratio=Math.min(1,maxSide/Math.max(img.naturalWidth,img.naturalHeight));
+    if(!img.naturalWidth||!img.naturalHeight)throw new Error('الصورة غير واضحة أو تالفة.');
     const canvas=document.createElement('canvas');
-    canvas.width=Math.max(1,Math.round(img.naturalWidth*ratio));
-    canvas.height=Math.max(1,Math.round(img.naturalHeight*ratio));
     const ctx=canvas.getContext('2d');
-    if(!ctx)throw new Error('canvas');
-    ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
-    ctx.drawImage(img,0,0,canvas.width,canvas.height);
-    resolve(canvas.toDataURL('image/jpeg',0.75));
-   }catch(e){reject(e)}
+    if(!ctx)throw new Error('تعذر تجهيز الصورة على الجهاز.');
+    // Start at legible resolution. Reduce resolution and JPEG quality only
+    // as needed to fit ten pictures in a single limited Gemini request.
+    const attempts=[
+     [1700,.83],[1600,.78],[1500,.74],[1400,.7],
+     [1300,.67],[1200,.63],[1100,.60],[1000,.57],[900,.52]
+    ];
+    for(const [maxSide,quality] of attempts){
+     const scale=Math.min(1,maxSide/Math.max(img.naturalWidth,img.naturalHeight));
+     canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));
+     canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+     ctx.fillStyle='#fff';
+     ctx.fillRect(0,0,canvas.width,canvas.height);
+     ctx.drawImage(img,0,0,canvas.width,canvas.height);
+     const data=canvas.toDataURL('image/jpeg',quality);
+     if(data.startsWith('data:image/jpeg;base64,')&&data.length<=maxCharacters){
+      resolve(data);
+      return;
+     }
+    }
+    throw new Error('تفاصيل بعض الصور كتير. جرّب تصوير الجزء المطلوب فقط أو ارفع صورًا أقل.');
+   }catch(error){reject(error)}
    finally{URL.revokeObjectURL(blobURL)}
   };
-  img.onerror=()=>{URL.revokeObjectURL(blobURL);reject(new Error('image decode failed'))};
+  img.onerror=()=>{URL.revokeObjectURL(blobURL);reject(new Error('تعذر قراءة ملف الصورة.'))};
   img.src=blobURL;
  });
 }
@@ -210,7 +244,7 @@ async function tutorStart(event){
  try{
   const data=await studentApi('/api/student-tutor',{method:'POST',
    body:JSON.stringify({action:'lesson',subject:tutor.subject,grade:tutor.grade,
-    sourceText:tutor.sourceText,images:tutor.images})});
+    sourceText:tutor.sourceText,images:tutor.images.map(im=>({data:im.data}))})});
   tutor.lesson=data;tutor.step=0;tutor.gameAnswers={};tutor.answers=[];
   tutor.examSubmitted=false;tutor.askAnswer=null;tutor.question='';
   tutorToast('✅ الدرس جاهز! اقرأ أول جزء وكمّل الألعاب خطوة خطوة.');
