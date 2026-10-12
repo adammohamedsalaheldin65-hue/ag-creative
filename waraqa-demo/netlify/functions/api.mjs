@@ -7,6 +7,7 @@ import paymentAdmin from '../../api/payment-admin.js';
 import paymentProof from '../../api/payment-proof.js';
 import studentQuizzes from '../../api/student-quizzes.js';
 import studentStudy from '../../api/student-study.js';
+import studentTutor from '../../api/student-tutor.js';
 import subscriptionStatus from '../../api/subscription-status.js';
 import summarizeBook from '../../api/summarize-book.js';
 import teacherQuizzes from '../../api/teacher-quizzes.js';
@@ -19,6 +20,7 @@ const handlers=Object.freeze({
  'payment-proof':paymentProof,
  'student-quizzes':studentQuizzes,
  'student-study':studentStudy,
+  'student-tutor':studentTutor,
  'subscription-status':subscriptionStatus,
  'summarize-book':summarizeBook,
  'teacher-quizzes':teacherQuizzes
