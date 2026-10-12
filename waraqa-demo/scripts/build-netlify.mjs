@@ -7,7 +7,7 @@ const dist=join(siteRoot,'dist');
 const assets=[
   'index.html','admin.html','student.html',
   'exam-variants.js','subscription-ui.js','book-summary.js',
-  'teacher-quizzes.js','student-portal.js'
+  'teacher-quizzes.js','student-portal.js','student-tutor.js'
 ];
 await rm(dist,{recursive:true,force:true});
 await mkdir(dist,{recursive:true});
