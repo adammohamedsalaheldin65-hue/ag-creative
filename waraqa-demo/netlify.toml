@@ -1,0 +1,16 @@
+# Alternative free hosting for Waraqa while Vercel deployments are rate-limited.
+# In Netlify "Import from Git", set Base directory = waraqa-demo.
+# Do NOT place API source, SQL, or secrets in the public publish directory.
+[build]
+command = "node scripts/build-netlify.mjs"
+publish = "dist"
+
+[functions]
+directory = "netlify/functions"
+node_bundler = "esbuild"
+
+[build.environment]
+NODE_VERSION = "22"
+
+# The backend uses function-level /api/:name routing (see netlify/functions/api.mjs).
+# Never add a SPA catch-all rewrite which would hide missing API routes.
