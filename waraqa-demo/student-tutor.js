@@ -39,7 +39,7 @@ function tutorImageHTML(){
 function tutorViewHTML(){
  let out='<section class="card"><h2>📸 اتعلّم من تصوير الكتاب</h2>'+
   '<p>صوّر صفحات الدرس، وورقة هتشرحها خطوة خطوة، مع ألعاب ذهنية وسط الشرح، وبعدها امتحان اختيار ومقالي من الصفحات المرفوعة.</p>'+
-  '<div class="notice warn">الشرح والامتحان مبنيّان على الصفحات اللي صورتها فقط، وممكن تفوت تفاصيل لو الصورة غير واضحة. لتحضير امتحان المنهج كله لازم ترفع كل دروسه بالتتابع. حصة الطالب: طلبان للذكاء الاصطناعي يوميًا، والشرح طلب، وسؤال المتابعة طلب تاني.</div>'+
+  '<div class="notice warn">الشرح والامتحان مبنيّان على الصفحات اللي صورتها فقط؛ ممكن تفوت تفاصيل لو الصور غير واضحة. لتحضير امتحان المنهج كله لازم تدخل جميع الدروس. حصة الطالب طلبان AI يوميًا: إعداد الدرس طلب، وسؤال المتابعة طلب آخر. الصور تُرسل إلى Gemini لتحليلها؛ تجنّب تصوير أسماء الطلاب أو أي معلومات شخصية. هذه جلسة مذاكرة مؤقتة وليست امتحانًا رسميًا محفوظًا.</div>'+
   '<form id="tutor-lesson-form"><div class="grid-two">'+
   '<div class="label-group"><label for="tutor-subject">المادة</label><input class="field" id="tutor-subject" maxlength="90" value="'+studentEscape(tutor.subject)+'" placeholder="العلوم"></div>'+
   '<div class="label-group"><label for="tutor-grade">الصف الدراسي</label><input class="field" id="tutor-grade" maxlength="90" value="'+studentEscape(tutor.grade||st.grade||'')+'" placeholder="الرابع الابتدائي"></div></div>'+
