@@ -48,13 +48,13 @@ export default {
     const subject=txt(d.subject,90),grade=txt(d.grade,90);
     const source=txt(d.sourceText,6500);
     const images=Array.isArray(d.images)?d.images:[];
-    if(images.length>4)return problem('الحد الأقصى أربع صور للدرس الواحد',413);
+    if(images.length>10)return problem('الحد الأقصى عشر صور للدرس الواحد',413);
     if(!images.length&&(source.length<90||source.length>6000))
      return problem('صوّر صفحات الكتاب أو أدخل نص درس لا يقل عن 90 حرفًا.');
     if(images.length&&images.some(x=>typeof x?.data!=='string'||
       !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(x.data)))
      return problem('ارفع صور JPEG أو PNG أو WEBP واضحة فقط.');
-    if(images.reduce((total,x)=>total+String(x.data||'').length,0)>2_950_000)
+    if(images.reduce((total,x)=>total+String(x.data||'').length,0)>3_250_000)
      return problem('الصور حجمها كبير. صغّر حجمها أو عددها.',413);
     // A shared Supabase transaction reserves quota before any Gemini call.
     await claimStudentQuota(auth);
@@ -74,7 +74,7 @@ export default {
      'النص المرفق (إن وجد):',
      source||'لا يوجد نص إضافي؛ اقرأ الصور.'
     ].join('\n\n');
-    const ai=await geminiJSON(prompt,images,{maxOutputTokens:6500});
+    const ai=await geminiJSON(prompt,images,{maxOutputTokens:6500,maxImages:10});
     const out=lessonOutput(ai);
     if(!out.sections.length||!out.exam.mcq.length)
      return problem('الصور لم تكن واضحة أو الشرح لم يكتمل. جرّب صورًا أوضح ونصًا أقصر.',422);
