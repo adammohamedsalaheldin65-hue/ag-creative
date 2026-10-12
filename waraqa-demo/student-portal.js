@@ -45,13 +45,14 @@ function studentRender(){
   '<button class="btn outline" type="button" data-action="student-logout" style="padding:7px 11px">خروج</button>';
  main.innerHTML='<div class="layout"><nav aria-label="أقسام بوابة الطالب">'+
   studentNavButton('study','📚','مذاكرتي')+
+  studentNavButton('tutor','📸','اتعلّم بالتصوير')+
   studentNavButton('quiz','✏️','حل امتحان')+
   studentNavButton('results','📈','نتائجي')+
   '<p class="nav-note">ذكاء اصطناعي: محاولتان لكل طالب يوميًا، و25 طلبًا إجماليًا للطلاب لحماية تكاليف ورقة.</p>'+
   '</nav><div class="work">'+
   '<section class="hero"><h1>أهلًا، '+studentEscape(st.account.name)+'! 👋</h1>'+
   '<p>ذاكر درسك، جرّب نفسك، وحل امتحانات معلمك وشوف درجاتك.</p></section>'+
-  (st.view==='study'?studentStudyHTML():st.view==='quiz'?studentQuizHTML():studentResultsHTML())+
+  (st.view==='study'?studentStudyHTML():st.view==='tutor'?tutorViewHTML():st.view==='quiz'?studentQuizHTML():studentResultsHTML())+
   '</div></div>';
 }
 function studentNavButton(view,emoji,title){
