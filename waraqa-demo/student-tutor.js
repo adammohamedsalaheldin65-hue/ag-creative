@@ -10,6 +10,12 @@ const tutor={
  askAnswer:null,notice:''
 };
 
+function tutorReset(){
+ tutor.images=[];tutor.subject='';tutor.grade='';tutor.sourceText='';
+ tutor.lesson=null;tutor.step=0;tutor.gameAnswers={};tutor.busy=false;
+ tutor.question='';tutor.answers=[];tutor.examSubmitted=false;tutor.askAnswer=null;tutor.notice='';
+}
+
 function tutorSteps(){
  const data=tutor.lesson;
  if(!data)return [];
