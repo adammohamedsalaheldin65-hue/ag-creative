@@ -209,6 +209,7 @@ async function studentSignIn(event){
 async function studentLogout(){
  await st.client?.auth.signOut();
  st.user=null;st.account=null;st.study=null;st.quiz=null;st.attempt=null;st.results=null;
+ if(typeof tutorReset==='function')tutorReset();
  studentAlert('');studentRender();
 }
 async function studentMakeStudy(event){
@@ -325,7 +326,8 @@ async function studentInitialize(){
   if(data?.user)await studentResolveAccount(data.user);
   st.client.auth.onAuthStateChange(event=>{
     if(event==='SIGNED_OUT'){
-      st.user=null;st.account=null;st.quiz=null;st.attempt=null;st.results=null;studentRender();
+      st.user=null;st.account=null;st.quiz=null;st.attempt=null;st.results=null;
+      if(typeof tutorReset==='function')tutorReset();studentRender();
     }
   });
   studentRender();
